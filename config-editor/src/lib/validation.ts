@@ -48,7 +48,6 @@ export const validators = {
   },
 
   note: (value: number): string | null => {
-    if (value === undefined || value === null) return 'Note is required';
     if (value < 0 || value > 127) return 'Note must be between 0 and 127';
     if (!Number.isInteger(value)) return 'Note must be an integer';
     return null;
@@ -61,7 +60,6 @@ export const validators = {
   },
 
   program: (value: number): string | null => {
-    if (value === undefined || value === null) return 'Program is required';
     if (value < 0 || value > 127) return 'Program must be between 0 and 127';
     if (!Number.isInteger(value)) return 'Program must be an integer';
     return null;
