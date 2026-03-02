@@ -688,7 +688,6 @@ def handle_switches():
             # Convert to 1-indexed button number
             btn_num = i if HAS_ENCODER else i + 1
             idx = btn_num - 1
-            btn_state = button_states[idx]
             btn_config = buttons[idx] if idx < len(buttons) else {"cc": 20 + idx}
             
             message_type = btn_config.get("type", "cc")
