@@ -1,7 +1,7 @@
 <script lang="ts">
   import ColorSelect from './ColorSelect.svelte';
-  import type { ButtonConfig, ButtonColor, ButtonMode, OffMode, MessageType } from '$lib/types';
-  import { validationErrors } from '$lib/formStore';
+  import type { ButtonConfig, ButtonColor, ButtonMode, OffMode, MessageType, StateOverride } from '$lib/types';
+  import { validationErrors, syncButtonStates } from '$lib/formStore';
 
   interface Props {
     button: ButtonConfig;
@@ -99,6 +99,30 @@
   function handlePCStepChange(e: Event) {
     const target = e.target as HTMLInputElement;
     onUpdate('pc_step', parseInt(target.value));
+  }
+
+  let hasKeytimes = $derived((button.keytimes ?? 1) > 1);
+  let keytimesError = $derived($validationErrors.get(`${basePath}.keytimes`));
+
+  function handleKeytimesChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const value = target.value === '' ? 1 : Math.max(1, parseInt(target.value) || 1);
+    syncButtonStates(index, value);
+  }
+
+  function handleStateFieldChange(si: number, field: string, e: Event) {
+    const target = e.target as HTMLInputElement;
+    const value = target.value === '' ? undefined : parseInt(target.value);
+    onUpdate(`states[${si}].${field}`, value);
+  }
+
+  function handleStateColorChange(si: number, color: ButtonColor) {
+    onUpdate(`states[${si}].color`, color);
+  }
+
+  function handleStateLabelChange(si: number, e: Event) {
+    const target = e.target as HTMLInputElement;
+    onUpdate(`states[${si}].label`, target.value === '' ? undefined : target.value);
   }
 
   let labelError = $derived($validationErrors.get(`${basePath}.label`));
@@ -241,6 +265,21 @@
   {/if}
 
   <div class="field">
+    <label class="field-label">Keytimes:</label>
+    <input
+      type="number"
+      class="input-cc"
+      class:error={!!keytimesError}
+      value={button.keytimes ?? 1}
+      onblur={handleKeytimesChange}
+      disabled={disabled}
+      min="1"
+      max="99"
+    />
+    {#if keytimesError}<span class="error-text">{keytimesError}</span>{/if}
+  </div>
+
+  <div class="field">
     <label class="field-label">LED Color:</label>
     <ColorSelect
       value={button.color}
@@ -262,6 +301,95 @@
         <option value="dim">Dim</option>
         <option value="off">Off</option>
       </select>
+    </div>
+  {/if}
+
+  {#if hasKeytimes && !disabled}
+    <div class="states-section">
+      <span class="states-label">States ({button.states?.length ?? 0}):</span>
+      {#each (button.states ?? []) as state, si}
+        <div class="state-row">
+          <span class="state-num">S{si + 1}:</span>
+
+          {#if isCC}
+            <div class="field">
+              <label class="field-label">CC:</label>
+              <input type="number" class="input-cc"
+                value={state.cc !== undefined ? state.cc : ''}
+                onblur={(e) => handleStateFieldChange(si, 'cc', e)}
+                min="0" max="127" placeholder={String(button.cc ?? '')} />
+            </div>
+            <div class="field">
+              <label class="field-label">ON Val:</label>
+              <input type="number" class="input-cc-value"
+                value={state.cc_on !== undefined ? state.cc_on : ''}
+                onblur={(e) => handleStateFieldChange(si, 'cc_on', e)}
+                min="0" max="127" placeholder={String(button.cc_on ?? 127)} />
+            </div>
+            <div class="field">
+              <label class="field-label">OFF Val:</label>
+              <input type="number" class="input-cc-value"
+                value={state.cc_off !== undefined ? state.cc_off : ''}
+                onblur={(e) => handleStateFieldChange(si, 'cc_off', e)}
+                min="0" max="127" placeholder={String(button.cc_off ?? 0)} />
+            </div>
+          {:else if isNote}
+            <div class="field">
+              <label class="field-label">Note:</label>
+              <input type="number" class="input-cc"
+                value={state.note !== undefined ? state.note : ''}
+                onblur={(e) => handleStateFieldChange(si, 'note', e)}
+                min="0" max="127" placeholder={String(button.note ?? 60)} />
+            </div>
+            <div class="field">
+              <label class="field-label">Vel ON:</label>
+              <input type="number" class="input-cc-value"
+                value={state.velocity_on !== undefined ? state.velocity_on : ''}
+                onblur={(e) => handleStateFieldChange(si, 'velocity_on', e)}
+                min="0" max="127" placeholder={String(button.velocity_on ?? 127)} />
+            </div>
+            <div class="field">
+              <label class="field-label">Vel OFF:</label>
+              <input type="number" class="input-cc-value"
+                value={state.velocity_off !== undefined ? state.velocity_off : ''}
+                onblur={(e) => handleStateFieldChange(si, 'velocity_off', e)}
+                min="0" max="127" placeholder={String(button.velocity_off ?? 0)} />
+            </div>
+          {:else if isPC}
+            <div class="field">
+              <label class="field-label">Program:</label>
+              <input type="number" class="input-cc"
+                value={state.program !== undefined ? state.program : ''}
+                onblur={(e) => handleStateFieldChange(si, 'program', e)}
+                min="0" max="127" placeholder={String(button.program ?? 0)} />
+            </div>
+          {:else if isPCIncDec}
+            <div class="field">
+              <label class="field-label">Step:</label>
+              <input type="number" class="input-cc"
+                value={state.pc_step !== undefined ? state.pc_step : ''}
+                onblur={(e) => handleStateFieldChange(si, 'pc_step', e)}
+                min="1" max="127" placeholder={String(button.pc_step ?? 1)} />
+            </div>
+          {/if}
+
+          <div class="field">
+            <label class="field-label">Color:</label>
+            <ColorSelect
+              value={state.color ?? button.color}
+              onchange={(color) => handleStateColorChange(si, color)}
+            />
+          </div>
+          <div class="field">
+            <label class="field-label">Label:</label>
+            <input type="text" class="input-label"
+              value={state.label ?? ''}
+              onblur={(e) => handleStateLabelChange(si, e)}
+              maxlength="6"
+              placeholder={button.label} />
+          </div>
+        </div>
+      {/each}
     </div>
   {/if}
 
@@ -363,6 +491,41 @@
     color: #dc3545;
     white-space: nowrap;
     margin-top: 2px;
+  }
+
+  .states-section {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .states-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 0.25rem;
+  }
+
+  .state-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.25rem 0.5rem;
+    background: #fafafa;
+    border: 1px solid #eee;
+    border-radius: 4px;
+  }
+
+  .state-num {
+    font-size: 0.75rem;
+    color: #888;
+    min-width: 28px;
+    padding-top: 1.5rem;
   }
 
   .disabled-overlay {
