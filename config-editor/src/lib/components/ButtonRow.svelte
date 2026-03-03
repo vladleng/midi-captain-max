@@ -1,6 +1,6 @@
 <script lang="ts">
   import ColorSelect from './ColorSelect.svelte';
-  import type { ButtonConfig, ButtonColor, ButtonMode, OffMode, MessageType, StateOverride } from '$lib/types';
+  import type { ButtonConfig, ButtonColor, ButtonMode, OffMode, MessageType } from '$lib/types';
   import { validationErrors, syncButtonStates } from '$lib/formStore';
 
   interface Props {
@@ -106,7 +106,7 @@
 
   function handleKeytimesChange(e: Event) {
     const target = e.target as HTMLInputElement;
-    const value = target.value === '' ? 1 : Math.max(1, parseInt(target.value) || 1);
+    const value = target.value === '' ? 1 : Math.min(99, Math.max(1, parseInt(target.value) || 1));
     syncButtonStates(index, value);
   }
 
@@ -123,6 +123,10 @@
   function handleStateLabelChange(si: number, e: Event) {
     const target = e.target as HTMLInputElement;
     onUpdate(`states[${si}].label`, target.value === '' ? undefined : target.value);
+  }
+
+  function stateError(si: number, field: string): string | undefined {
+    return $validationErrors.get(`${basePath}.states[${si}].${field}`);
   }
 
   let labelError = $derived($validationErrors.get(`${basePath}.label`));
@@ -314,62 +318,70 @@
           {#if isCC}
             <div class="field">
               <label class="field-label">CC:</label>
-              <input type="number" class="input-cc"
+              <input type="number" class="input-cc" class:error={!!stateError(si, 'cc')}
                 value={state.cc !== undefined ? state.cc : ''}
                 onblur={(e) => handleStateFieldChange(si, 'cc', e)}
                 min="0" max="127" placeholder={String(button.cc ?? '')} />
+              {#if stateError(si, 'cc')}<span class="error-text">{stateError(si, 'cc')}</span>{/if}
             </div>
             <div class="field">
               <label class="field-label">ON Val:</label>
-              <input type="number" class="input-cc-value"
+              <input type="number" class="input-cc-value" class:error={!!stateError(si, 'cc_on')}
                 value={state.cc_on !== undefined ? state.cc_on : ''}
                 onblur={(e) => handleStateFieldChange(si, 'cc_on', e)}
                 min="0" max="127" placeholder={String(button.cc_on ?? 127)} />
+              {#if stateError(si, 'cc_on')}<span class="error-text">{stateError(si, 'cc_on')}</span>{/if}
             </div>
             <div class="field">
               <label class="field-label">OFF Val:</label>
-              <input type="number" class="input-cc-value"
+              <input type="number" class="input-cc-value" class:error={!!stateError(si, 'cc_off')}
                 value={state.cc_off !== undefined ? state.cc_off : ''}
                 onblur={(e) => handleStateFieldChange(si, 'cc_off', e)}
                 min="0" max="127" placeholder={String(button.cc_off ?? 0)} />
+              {#if stateError(si, 'cc_off')}<span class="error-text">{stateError(si, 'cc_off')}</span>{/if}
             </div>
           {:else if isNote}
             <div class="field">
               <label class="field-label">Note:</label>
-              <input type="number" class="input-cc"
+              <input type="number" class="input-cc" class:error={!!stateError(si, 'note')}
                 value={state.note !== undefined ? state.note : ''}
                 onblur={(e) => handleStateFieldChange(si, 'note', e)}
                 min="0" max="127" placeholder={String(button.note ?? 60)} />
+              {#if stateError(si, 'note')}<span class="error-text">{stateError(si, 'note')}</span>{/if}
             </div>
             <div class="field">
               <label class="field-label">Vel ON:</label>
-              <input type="number" class="input-cc-value"
+              <input type="number" class="input-cc-value" class:error={!!stateError(si, 'velocity_on')}
                 value={state.velocity_on !== undefined ? state.velocity_on : ''}
                 onblur={(e) => handleStateFieldChange(si, 'velocity_on', e)}
                 min="0" max="127" placeholder={String(button.velocity_on ?? 127)} />
+              {#if stateError(si, 'velocity_on')}<span class="error-text">{stateError(si, 'velocity_on')}</span>{/if}
             </div>
             <div class="field">
               <label class="field-label">Vel OFF:</label>
-              <input type="number" class="input-cc-value"
+              <input type="number" class="input-cc-value" class:error={!!stateError(si, 'velocity_off')}
                 value={state.velocity_off !== undefined ? state.velocity_off : ''}
                 onblur={(e) => handleStateFieldChange(si, 'velocity_off', e)}
                 min="0" max="127" placeholder={String(button.velocity_off ?? 0)} />
+              {#if stateError(si, 'velocity_off')}<span class="error-text">{stateError(si, 'velocity_off')}</span>{/if}
             </div>
           {:else if isPC}
             <div class="field">
               <label class="field-label">Program:</label>
-              <input type="number" class="input-cc"
+              <input type="number" class="input-cc" class:error={!!stateError(si, 'program')}
                 value={state.program !== undefined ? state.program : ''}
                 onblur={(e) => handleStateFieldChange(si, 'program', e)}
                 min="0" max="127" placeholder={String(button.program ?? 0)} />
+              {#if stateError(si, 'program')}<span class="error-text">{stateError(si, 'program')}</span>{/if}
             </div>
           {:else if isPCIncDec}
             <div class="field">
               <label class="field-label">Step:</label>
-              <input type="number" class="input-cc"
+              <input type="number" class="input-cc" class:error={!!stateError(si, 'pc_step')}
                 value={state.pc_step !== undefined ? state.pc_step : ''}
                 onblur={(e) => handleStateFieldChange(si, 'pc_step', e)}
                 min="1" max="127" placeholder={String(button.pc_step ?? 1)} />
+              {#if stateError(si, 'pc_step')}<span class="error-text">{stateError(si, 'pc_step')}</span>{/if}
             </div>
           {/if}
 
@@ -382,11 +394,12 @@
           </div>
           <div class="field">
             <label class="field-label">Label:</label>
-            <input type="text" class="input-label"
+            <input type="text" class="input-label" class:error={!!stateError(si, 'label')}
               value={state.label ?? ''}
               onblur={(e) => handleStateLabelChange(si, e)}
               maxlength="6"
               placeholder={button.label} />
+            {#if stateError(si, 'label')}<span class="error-text">{stateError(si, 'label')}</span>{/if}
           </div>
         </div>
       {/each}

@@ -187,6 +187,11 @@ export function updateField(path: string, value: any) {
 }
 
 export function syncButtonStates(buttonIndex: number, keytimes: number) {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+
   formState.update(state => {
     const newConfig = structuredClone(state.config);
     const btn = newConfig.buttons[buttonIndex];
