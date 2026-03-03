@@ -10,6 +10,17 @@ export type MessageType = 'cc' | 'note' | 'pc' | 'pc_inc' | 'pc_dec';
 export type Polarity = 'normal' | 'inverted';
 export type DeviceType = 'std10' | 'mini6';
 
+export interface StateOverride {
+  cc?: number;
+  cc_on?: number;
+  cc_off?: number;
+  note?: number;
+  velocity_on?: number;
+  velocity_off?: number;
+  color?: ButtonColor;
+  label?: string;
+}
+
 export interface ButtonConfig {
   label: string;
   color: ButtonColor;
@@ -29,6 +40,9 @@ export interface ButtonConfig {
   program?: number;        // Program number 0-127
   // PC inc/dec fields (type='pc_inc' | 'pc_dec')
   pc_step?: number;        // Step size (default: 1)
+  // Keytimes cycling
+  keytimes?: number;         // States to cycle through on press (1-99); 1 = no cycling
+  states?: StateOverride[];  // Per-state overrides; length should match keytimes
 }
 
 export interface EncoderPush {
