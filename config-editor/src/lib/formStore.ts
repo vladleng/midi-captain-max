@@ -186,6 +186,33 @@ export function updateField(path: string, value: any) {
   }, DEBOUNCE_MS);
 }
 
+export function syncButtonStates(buttonIndex: number, keytimes: number) {
+  formState.update(state => {
+    const newConfig = structuredClone(state.config);
+    const btn = newConfig.buttons[buttonIndex];
+    if (!btn) return state;
+
+    if (keytimes <= 1) {
+      delete btn.keytimes;
+      delete btn.states;
+    } else {
+      btn.keytimes = keytimes;
+      const current = btn.states ?? [];
+      if (current.length < keytimes) {
+        while (current.length < keytimes) current.push({});
+      } else if (current.length > keytimes) {
+        current.length = keytimes;
+      }
+      btn.states = current;
+    }
+
+    return { ...state, config: newConfig, isDirty: true };
+  });
+
+  validate();
+  formState.update(state => pushHistory(state));
+}
+
 function createDefaultButton(index: number): ButtonConfig {
   return {
     label: `BTN${index}`,
