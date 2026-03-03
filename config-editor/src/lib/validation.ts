@@ -66,14 +66,14 @@ export const validators = {
   },
 
   pcStep: (value: number): string | null => {
-    if (value < 1 || value > 127) return 'Step must be between 1 and 127';
     if (!Number.isInteger(value)) return 'Step must be an integer';
+    if (value < 1 || value > 127) return 'Step must be between 1 and 127';
     return null;
   },
 
   keytimes: (value: number): string | null => {
-    if (value < 1 || value > 99) return 'Keytimes must be between 1 and 99';
     if (!Number.isInteger(value)) return 'Keytimes must be an integer';
+    if (value < 1 || value > 99) return 'Keytimes must be between 1 and 99';
     return null;
   },
 };
@@ -130,6 +130,10 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
         const stepError = validators.pcStep(btn.pc_step);
         if (stepError) errors.set(`buttons[${idx}].pc_step`, stepError);
       }
+    }
+
+    if (btn.states && (btn.keytimes === undefined || btn.keytimes <= 1)) {
+      errors.set(`buttons[${idx}].states`, 'states requires keytimes > 1');
     }
 
     if (btn.keytimes !== undefined) {

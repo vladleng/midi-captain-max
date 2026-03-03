@@ -204,6 +204,28 @@ class TestValidateButton:
         assert "states" in btn
         assert len(btn["states"]) == 3
 
+    def test_validate_button_clamps_invalid_cc_in_states(self):
+        """Out-of-range numeric state overrides are clamped, not passed through raw."""
+        btn = validate_button({
+            "type": "cc",
+            "cc": 20,
+            "keytimes": 2,
+            "states": [{"cc": 200, "cc_on": -10, "cc_off": 999}]
+        }, index=0)
+        assert btn["states"][0]["cc"] == 127      # clamped to max
+        assert btn["states"][0]["cc_on"] == 0     # clamped to min
+        assert btn["states"][0]["cc_off"] == 127  # clamped to max
+
+    def test_validate_button_clamps_invalid_note_in_states(self):
+        btn = validate_button({
+            "type": "note",
+            "note": 60,
+            "keytimes": 2,
+            "states": [{"note": 200, "velocity_on": -5}]
+        }, index=0)
+        assert btn["states"][0]["note"] == 127
+        assert btn["states"][0]["velocity_on"] == 0
+
     def test_validate_button_preserves_program_in_states(self):
         btn = validate_button({
             "type": "pc",
@@ -492,3 +514,9 @@ class TestGetButtonStateConfig:
     def test_pc_dec_state_overrides_pc_step(self):
         btn = {"type": "pc_dec", "pc_step": 1, "states": [{"pc_step": 3}]}
         assert get_button_state_config(btn, 1)["pc_step"] == 3
+
+    def test_no_color_key_in_result_when_not_in_config(self):
+        """color absent from btn_config means no color key in result — callers must use .get()."""
+        btn = {"type": "cc", "cc": 20}
+        result = get_button_state_config(btn, 1)
+        assert "color" not in result

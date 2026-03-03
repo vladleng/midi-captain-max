@@ -47,6 +47,21 @@ def _default_config(button_count):
     }
 
 
+_MIDI_BYTE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program")
+
+def _clamp_state_field(field, value):
+    """Clamp numeric state override fields to valid MIDI ranges. Non-numeric fields pass through."""
+    if field in _MIDI_BYTE_FIELDS:
+        if not isinstance(value, int):
+            return 0
+        return max(0, min(127, value))
+    if field == "pc_step":
+        if not isinstance(value, int):
+            return 1
+        return max(1, min(127, value))
+    return value  # color, label — pass through as-is
+
+
 def validate_button(btn, index=0, global_channel=None):
     """Validate a button config dict, filling in defaults.
 
@@ -115,7 +130,7 @@ def validate_button(btn, index=0, global_channel=None):
                     validated_state = {}
                     for field in STATE_OVERRIDE_FIELDS:
                         if field in state:
-                            validated_state[field] = state[field]
+                            validated_state[field] = _clamp_state_field(field, state[field])
                     validated_states.append(validated_state)
             if validated_states:
                 validated["states"] = validated_states

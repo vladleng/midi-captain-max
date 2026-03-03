@@ -521,7 +521,7 @@ def get_button_color(btn_config, keytime_index):
     Returns:
         RGB tuple for the color
     """
-    return get_color(get_button_state_config(btn_config, keytime_index)["color"])
+    return get_color(get_button_state_config(btn_config, keytime_index).get("color", "white"))
 
 
 def set_button_state(switch_idx, on):
@@ -675,7 +675,8 @@ def handle_switches():
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, momentary)")
                     status_label.text = f"TX CC{cc}={val}"
                 elif pressed:
-                    new_state = not button_states[idx].state
+                    # Keytimes cycling always stays on; standard toggle flips on/off
+                    new_state = True if btn_state.keytimes > 1 else not button_states[idx].state
                     set_button_state(btn_num, new_state)
                     val = cc_on if new_state else cc_off
                     midi.send(ControlChange(cc, val, channel=channel))
@@ -700,7 +701,8 @@ def handle_switches():
                         set_button_state(btn_num, False)
                         print(f"[MIDI TX] Ch{channel+1} NoteOff{note} (switch {btn_num})")
                 elif pressed:
-                    new_state = not button_states[idx].state
+                    # Keytimes cycling always stays on; standard toggle flips on/off
+                    new_state = True if btn_state.keytimes > 1 else not button_states[idx].state
                     set_button_state(btn_num, new_state)
                     if new_state:
                         midi.send(NoteOn(note, vel_on, channel=channel))

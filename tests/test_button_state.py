@@ -200,15 +200,25 @@ class TestButtonStateKeytimes:
     def test_keytimes_one_behaves_as_standard_toggle(self):
         """keytimes=1 maintains standard toggle behavior."""
         btn = ButtonState(cc=20, mode="toggle", keytimes=1)
-        
+
         # Standard toggle on/off
         btn.on_press()
         assert btn.state == True
         assert btn.get_keytime() == 1
-        
+
         btn.on_press()
         assert btn.state == False
         assert btn.get_keytime() == 1
+
+    def test_keytimes_toggle_always_stays_on(self):
+        """When keytimes > 1, toggle mode always stays on — it cycles states, never turns off."""
+        btn = ButtonState(cc=20, mode="toggle", keytimes=3)
+        btn.on_press()
+        assert btn.state == True   # press 1 → on, keytime 2
+        btn.on_press()
+        assert btn.state == True   # press 2 → still on, keytime 3
+        btn.on_press()
+        assert btn.state == True   # press 3 → still on, keytime cycles back to 1
 
 
 class TestAdvanceKeytime:
