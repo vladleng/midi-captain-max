@@ -229,6 +229,21 @@ rsync -av --checksum --inplace --itemize-changes \
     "$MOUNT_POINT/"
 
 # 2. Core modules, device definitions, and fonts
+# Clean up conflicting bytecode format before deploying. CircuitPython prefers
+# .mpy over .py, so the wrong format left on the device would shadow new files
+# and cause ImportErrors.
+#   dev context:  deploying .py  → remove any stale .mpy from device
+#   dist context: deploying .mpy → remove any stale .py  from device
+for dir in core devices; do
+    if [ -d "$MOUNT_POINT/$dir" ]; then
+        if [ "$CONTEXT" = "dev" ]; then
+            find "$MOUNT_POINT/$dir" -name '*.mpy' -delete
+        else
+            find "$MOUNT_POINT/$dir" -name '*.py' -delete
+        fi
+    fi
+done
+
 rsync -av --checksum --inplace --itemize-changes \
     --exclude='.DS_Store' \
     --exclude='*.pyc' \
