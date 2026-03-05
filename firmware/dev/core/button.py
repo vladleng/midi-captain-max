@@ -76,24 +76,34 @@ class ButtonState:
         """Set state (used by host override)."""
         self._state = bool(value)
     
+    def advance_keytime(self):
+        """Advance to next keytime state, cycling back to 1 after max.
+
+        No-op when keytimes == 1.
+        """
+        if self.keytimes > 1:
+            self.current_keytime = (self.current_keytime % self.keytimes) + 1
+
     def on_press(self):
         """Handle button press.
-        
-        For keytimes > 1: advances to next keytime state (cycling back to 1 after max).
-        
+
+        For keytimes > 1: advances to next keytime state via advance_keytime().
+
+        NOTE: handle_switches() in code.py does NOT call this method — it calls
+        advance_keytime() directly to keep keytime management and MIDI dispatch
+        in one place. This method is used by tests and any external consumers
+        that need the full ButtonState API without MIDI dispatch.
+
         Returns:
             Tuple of (state_changed: bool, new_state: bool, midi_value: int)
         """
         if self.mode == "momentary":
             self._state = True
-            # For keytimes with momentary, advance state on press
-            if self.keytimes > 1:
-                self.current_keytime = (self.current_keytime % self.keytimes) + 1
+            self.advance_keytime()
             return True, True, 127
         else:  # toggle
-            # For keytimes, advance to next state
             if self.keytimes > 1:
-                self.current_keytime = (self.current_keytime % self.keytimes) + 1
+                self.advance_keytime()
                 self._state = True  # Always "on" when cycling keytimes
                 return True, True, 127
             else:
@@ -103,7 +113,11 @@ class ButtonState:
     
     def on_release(self):
         """Handle button release.
-        
+
+        NOTE: handle_switches() in code.py does NOT call this method — release
+        handling is inlined there alongside MIDI dispatch. This method is used
+        by tests and any external consumers that need the full ButtonState API.
+
         Returns:
             Tuple of (state_changed: bool, new_state: bool, midi_value: int)
             For toggle mode, returns (False, state, None) - no action on release

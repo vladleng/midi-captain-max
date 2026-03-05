@@ -46,6 +46,36 @@ export const validators = {
     }
     return null;
   },
+
+  note: (value: number): string | null => {
+    if (value < 0 || value > 127) return 'Note must be between 0 and 127';
+    if (!Number.isInteger(value)) return 'Note must be an integer';
+    return null;
+  },
+
+  velocity: (value: number): string | null => {
+    if (value < 0 || value > 127) return 'Velocity must be between 0 and 127';
+    if (!Number.isInteger(value)) return 'Velocity must be an integer';
+    return null;
+  },
+
+  program: (value: number): string | null => {
+    if (value < 0 || value > 127) return 'Program must be between 0 and 127';
+    if (!Number.isInteger(value)) return 'Program must be an integer';
+    return null;
+  },
+
+  pcStep: (value: number): string | null => {
+    if (!Number.isInteger(value)) return 'Step must be an integer';
+    if (value < 1 || value > 127) return 'Step must be between 1 and 127';
+    return null;
+  },
+
+  keytimes: (value: number): string | null => {
+    if (!Number.isInteger(value)) return 'Keytimes must be an integer';
+    if (value < 1 || value > 99) return 'Keytimes must be between 1 and 99';
+    return null;
+  },
 };
 
 export function validateConfig(config: MidiCaptainConfig): ValidationResult {
@@ -68,13 +98,89 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
   // Validate all buttons
   config.buttons.forEach((btn, idx) => {
     const labelError = validators.label(btn.label);
-    if (labelError) {
-      errors.set(`buttons[${idx}].label`, labelError);
+    if (labelError) errors.set(`buttons[${idx}].label`, labelError);
+
+    const msgType = btn.type ?? 'cc';
+
+    if (msgType === 'cc') {
+      if (btn.cc !== undefined) {
+        const ccError = validators.cc(btn.cc);
+        if (ccError) errors.set(`buttons[${idx}].cc`, ccError);
+      }
+    } else if (msgType === 'note') {
+      if (btn.note !== undefined) {
+        const noteError = validators.note(btn.note);
+        if (noteError) errors.set(`buttons[${idx}].note`, noteError);
+      }
+      if (btn.velocity_on !== undefined) {
+        const velError = validators.velocity(btn.velocity_on);
+        if (velError) errors.set(`buttons[${idx}].velocity_on`, velError);
+      }
+      if (btn.velocity_off !== undefined) {
+        const velError = validators.velocity(btn.velocity_off);
+        if (velError) errors.set(`buttons[${idx}].velocity_off`, velError);
+      }
+    } else if (msgType === 'pc') {
+      if (btn.program !== undefined) {
+        const progError = validators.program(btn.program);
+        if (progError) errors.set(`buttons[${idx}].program`, progError);
+      }
+    } else if (msgType === 'pc_inc' || msgType === 'pc_dec') {
+      if (btn.pc_step !== undefined) {
+        const stepError = validators.pcStep(btn.pc_step);
+        if (stepError) errors.set(`buttons[${idx}].pc_step`, stepError);
+      }
     }
-    
-    const ccError = validators.cc(btn.cc);
-    if (ccError) {
-      errors.set(`buttons[${idx}].cc`, ccError);
+
+    if (btn.states && (btn.keytimes === undefined || btn.keytimes <= 1)) {
+      errors.set(`buttons[${idx}].states`, 'states requires keytimes > 1');
+    }
+
+    if (btn.keytimes !== undefined) {
+      const ktError = validators.keytimes(btn.keytimes);
+      if (ktError) errors.set(`buttons[${idx}].keytimes`, ktError);
+
+      if (btn.states) {
+        btn.states.forEach((state, si) => {
+          const sp = `buttons[${idx}].states[${si}]`;
+          if (state.cc !== undefined) {
+            const e = validators.cc(state.cc);
+            if (e) errors.set(`${sp}.cc`, e);
+          }
+          if (state.cc_on !== undefined) {
+            const e = validators.withinRange(state.cc_on, 0, 127);
+            if (e) errors.set(`${sp}.cc_on`, e);
+          }
+          if (state.cc_off !== undefined) {
+            const e = validators.withinRange(state.cc_off, 0, 127);
+            if (e) errors.set(`${sp}.cc_off`, e);
+          }
+          if (state.note !== undefined) {
+            const e = validators.note(state.note);
+            if (e) errors.set(`${sp}.note`, e);
+          }
+          if (state.velocity_on !== undefined) {
+            const e = validators.velocity(state.velocity_on);
+            if (e) errors.set(`${sp}.velocity_on`, e);
+          }
+          if (state.velocity_off !== undefined) {
+            const e = validators.velocity(state.velocity_off);
+            if (e) errors.set(`${sp}.velocity_off`, e);
+          }
+          if (state.program !== undefined) {
+            const e = validators.program(state.program);
+            if (e) errors.set(`${sp}.program`, e);
+          }
+          if (state.pc_step !== undefined) {
+            const e = validators.pcStep(state.pc_step);
+            if (e) errors.set(`${sp}.pc_step`, e);
+          }
+          if (state.label !== undefined) {
+            const e = validators.label(state.label);
+            if (e) errors.set(`${sp}.label`, e);
+          }
+        });
+      }
     }
   });
   
