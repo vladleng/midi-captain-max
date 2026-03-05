@@ -635,10 +635,8 @@ def handle_midi():
     elif isinstance(msg, ProgramChange):
         program = msg.patch
         print(f"[MIDI RX] Ch{msg_channel+1} PC{program}")
-        # Update all pc_inc/pc_dec buttons on this channel (no break - sync all trackers)
-        for i, btn_config in enumerate(buttons):
-            if btn_config.get("type") in ("pc_inc", "pc_dec") and btn_config.get("channel", 0) == msg_channel:
-                pc_values[msg_channel] = program
+        # pc_values is per-channel, so one assignment covers all pc_inc/pc_dec buttons on this channel
+        pc_values[msg_channel] = program
         status_label.text = f"RX PC{program}"
 
 

@@ -113,7 +113,11 @@ class ButtonState:
     
     def on_release(self):
         """Handle button release.
-        
+
+        NOTE: handle_switches() in code.py does NOT call this method — release
+        handling is inlined there alongside MIDI dispatch. This method is used
+        by tests and any external consumers that need the full ButtonState API.
+
         Returns:
             Tuple of (state_changed: bool, new_state: bool, midi_value: int)
             For toggle mode, returns (False, state, None) - no action on release
