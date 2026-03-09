@@ -368,9 +368,8 @@ Sync-Directory -Source (Join-Path $DevDir "fonts") -Destination (Join-Path $Moun
 Write-Host "lib/:" -ForegroundColor Cyan
 Sync-Directory -Source (Join-Path $DevDir "lib") -Destination (Join-Path $MountPoint "lib")
 
-# Flush writes to device before deploying config and code.py (equivalent to bash sync)
+# Drive letter for filesystem flush (used after all writes complete)
 $driveLetter = $MountPoint.TrimEnd('\')
-& cmd /c "fsutil volume flush $driveLetter" 2>$null | Out-Null
 
 # 3. Deploy config ONLY if it doesn't exist (preserve user customizations)
 if (-not (Test-Path $configPath) -or $Fresh) {
@@ -420,7 +419,7 @@ $files = Get-ChildItem -Recurse -File |
     Where-Object {
         $_.Name -notlike '*.pyc' -and
         $_.FullName -notmatch '__pycache__' -and
-        $_.FullName -notmatch 'experiments' -and
+        $_.FullName -notmatch '[/\\]experiments[/\\]' -and
         $_.Name -ne 'firmware.md5' -and
         $_.Name -ne '.DS_Store'
     } |
