@@ -97,12 +97,12 @@ Contents:
 
 Quick Start:
   macOS/Linux:
-    1. Connect your MIDI Captain via USB (make sure CircuitPython is installed)
+    1. Connect your MIDI Captain via USB
     2. Run: ./deploy.sh --install
     3. Follow the prompts
 
   Windows (PowerShell):
-    1. Connect your MIDI Captain via USB (make sure CircuitPython is installed)
+    1. Connect your MIDI Captain via USB
     2. Run: .\deploy.ps1 -Install
     3. Follow the prompts
 

@@ -1,13 +1,11 @@
 # MIDI Captain MAX — Firmware Installation
 
-## Before You Start
+## Getting Started
 
-You'll need:
+1. **Connect** your MIDI Captain to your computer via USB
+2. A drive called **CIRCUITPY** or **MIDICAPTAIN** should appear
 
-- **CircuitPython 7.x** installed on your MIDI Captain
-- Your device **connected via USB** and showing up as a drive called **CIRCUITPY** or **MIDICAPTAIN**
-
-> **Don't see the drive?** Make sure CircuitPython is installed — see the [Recovery](#recovery) section below.
+> **Don't see the drive?** See the [Recovery](#recovery) section below.
 
 ---
 
