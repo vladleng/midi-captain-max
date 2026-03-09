@@ -67,7 +67,7 @@ Use this method if the deploy scripts aren't working for you.
 1. **Connect** your MIDI Captain via USB
 2. **Hold Button 1** (top-left footswitch) while powering on — this enables write access
 3. **Copy ALL files and folders** from this package to the device drive, replacing existing files
-4. The device **restarts automatically** when the copy finishes. If it doesn't, unplug and replug the USB cable.
+4. **Safely eject** the drive from your computer, then unplug and replug the USB cable to restart the device
 
 > **Important:** If you've already customized your `config.json` (button mappings, colors, etc.), **don't overwrite it** — skip that file when copying.
 
@@ -80,7 +80,7 @@ If your device ends up in a bad state, don't worry — it's fully recoverable:
 1. Connect the device via USB (it should still show up as a drive)
 2. Delete everything on the drive
 3. Copy the firmware files onto the drive again
-4. The device will restart with a clean install
+4. Safely eject the drive, then unplug and replug USB to restart
 
 If the drive doesn't appear at all, reinstall CircuitPython:
 
