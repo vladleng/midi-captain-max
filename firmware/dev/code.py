@@ -387,8 +387,8 @@ for i in range(BUTTON_COUNT):
     button_states.append(ButtonState(cc=cc, mode=mode, keytimes=keytimes))
 
 pc_values = [0] * 16                 # Current PC value per MIDI channel (0-15), shared across all pc_inc/pc_dec buttons
-pc_flash_timers = [0] * BUTTON_COUNT # Countdown for PC button LED flash
-PC_FLASH_DURATION = 10               # ~100ms at typical loop speed (~10ms/iter)
+pc_flash_timers = [0.0] * BUTTON_COUNT  # Expiry time (monotonic) for PC button flash; 0 = inactive
+PC_FLASH_DURATION_MS = 200              # Default PC button flash duration in ms
 
 encoder_value = ENC_INITIAL  # Internal value 0-127
 encoder_slot = -1  # Current slot (set on first change)
@@ -570,23 +570,24 @@ def clamp_pc_value(value):
     return max(0, min(127, value))
 
 
-def flash_pc_button(button_idx):
+def flash_pc_button(button_idx, flash_ms=PC_FLASH_DURATION_MS):
     """Light LED briefly for PC button press feedback.
 
     Args:
         button_idx: 1-indexed button number (matches set_button_state convention)
+        flash_ms: flash duration in milliseconds
     """
     set_button_state(button_idx, True)
-    pc_flash_timers[button_idx - 1] = PC_FLASH_DURATION
+    pc_flash_timers[button_idx - 1] = time.monotonic() + flash_ms / 1000.0
 
 
 def update_pc_flash_timers():
-    """Decrement flash timers and turn off LEDs when expired. Call each main loop."""
+    """Turn off LEDs whose flash period has expired. Call each main loop."""
+    now = time.monotonic()
     for i in range(BUTTON_COUNT):
-        if pc_flash_timers[i] > 0:
-            pc_flash_timers[i] -= 1
-            if pc_flash_timers[i] == 0:
-                set_button_state(i + 1, False)
+        if pc_flash_timers[i] > 0 and now >= pc_flash_timers[i]:
+            pc_flash_timers[i] = 0.0
+            set_button_state(i + 1, False)
 
 
 # =============================================================================
@@ -721,7 +722,7 @@ def handle_switches():
                 midi.send(ProgramChange(program, channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
                 status_label.text = f"TX PC{program}"
-                flash_pc_button(btn_num)
+                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
             elif message_type == "pc_inc" and pressed:
                 btn_state.advance_keytime()
@@ -731,7 +732,7 @@ def handle_switches():
                 midi.send(ProgramChange(pc_values[channel], channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, inc)")
                 status_label.text = f"TX PC{pc_values[channel]}"
-                flash_pc_button(btn_num)
+                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
             elif message_type == "pc_dec" and pressed:
                 btn_state.advance_keytime()
@@ -741,7 +742,7 @@ def handle_switches():
                 midi.send(ProgramChange(pc_values[channel], channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, dec)")
                 status_label.text = f"TX PC{pc_values[channel]}"
-                flash_pc_button(btn_num)
+                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
 
 def handle_encoder_button():

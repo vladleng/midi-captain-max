@@ -101,6 +101,14 @@
     onUpdate('pc_step', parseInt(target.value));
   }
 
+  function handleFlashMsChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const value = target.value === '' ? undefined : parseInt(target.value);
+    onUpdate('flash_ms', value);
+  }
+
+  let flashMsError = $derived($validationErrors.get(`${basePath}.flash_ms`));
+
   let hasKeytimes = $derived((button.keytimes ?? 1) > 1);
   let keytimesError = $derived($validationErrors.get(`${basePath}.keytimes`));
 
@@ -265,6 +273,16 @@
         value={button.pc_step ?? 1} onblur={handlePCStepChange} disabled={disabled}
         min="1" max="127" />
       {#if pcStepError}<span class="error-text">{pcStepError}</span>{/if}
+    </div>
+  {/if}
+
+  {#if isPC || isPCIncDec}
+    <div class="field">
+      <label class="field-label">Flash (ms):</label>
+      <input type="number" class="input-cc" class:error={!!flashMsError}
+        value={button.flash_ms ?? ''} onblur={handleFlashMsChange} disabled={disabled}
+        min="50" max="5000" step="50" placeholder="200" />
+      {#if flashMsError}<span class="error-text">{flashMsError}</span>{/if}
     </div>
   {/if}
 

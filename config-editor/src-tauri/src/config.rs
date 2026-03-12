@@ -107,6 +107,9 @@ pub struct ButtonConfig {
     // PC inc/dec fields
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pc_step: Option<u8>,
+    // PC flash feedback (all PC types)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flash_ms: Option<u16>,
     // Keytimes cycling
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keytimes: Option<u8>,
@@ -291,6 +294,11 @@ impl MidiCaptainConfig {
             if let Some(val) = button.cc_off {
                 if val > 127 {
                     errors.push(format!("Button {} cc_off {} exceeds 127", i + 1, val));
+                }
+            }
+            if let Some(ms) = button.flash_ms {
+                if ms < 50 || ms > 5000 {
+                    errors.push(format!("Button {} flash_ms {} out of range (50-5000)", i + 1, ms));
                 }
             }
         }

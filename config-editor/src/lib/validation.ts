@@ -77,6 +77,12 @@ export const validators = {
     return null;
   },
 
+  flashMs: (value: number): string | null => {
+    if (!Number.isInteger(value)) return 'Flash duration must be an integer';
+    if (value < 50 || value > 5000) return 'Flash duration must be between 50 and 5000 ms';
+    return null;
+  },
+
   // value is stored as 0-15 (displayed as 1-16)
   channel: (value: number): string | null => {
     if (!Number.isInteger(value)) return 'Channel must be an integer';
@@ -142,6 +148,11 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
     if (btn.channel !== undefined) {
       const chError = validators.channel(btn.channel);
       if (chError) errors.set(`buttons[${idx}].channel`, chError);
+    }
+
+    if (btn.flash_ms !== undefined) {
+      const fError = validators.flashMs(btn.flash_ms);
+      if (fError) errors.set(`buttons[${idx}].flash_ms`, fError);
     }
 
     if (btn.states && (btn.keytimes === undefined || btn.keytimes <= 1)) {

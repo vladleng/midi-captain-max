@@ -42,6 +42,8 @@ export interface ButtonConfig {
   program?: number;        // Program number 0-127
   // PC inc/dec fields (type='pc_inc' | 'pc_dec')
   pc_step?: number;        // Step size (default: 1)
+  // PC flash feedback (all PC types)
+  flash_ms?: number;       // LED flash duration in ms (default: 200)
   // Keytimes cycling
   keytimes?: number;         // States to cycle through on press (1-99); 1 = no cycling
   states?: StateOverride[];  // Per-state overrides; length should match keytimes
