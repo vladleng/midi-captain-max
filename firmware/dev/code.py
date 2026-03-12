@@ -1,5 +1,5 @@
 """
-MIDI Captain Custom Firmware - MVP
+MIDI Captain MAX Custom Firmware - MVP
 
 Config-driven, bidirectional MIDI firmware for Paint Audio MIDI Captain controllers.
 
@@ -17,7 +17,7 @@ Author: Max Cascone (based on work by Helmut Keller)
 Date: 2026-01-27
 """
 
-print("\n=== MIDI CAPTAIN CUSTOM FIRMWARE ===\n")
+print("\n=== MIDI CAPTAIN MAX ===\n")
 
 import board
 import neopixel
