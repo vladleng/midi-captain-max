@@ -271,9 +271,9 @@ impl MidiCaptainConfig {
                     errors.push(format!("Button {} CC {} exceeds 127", i + 1, cc));
                 }
             }
-            if button.label.len() > 8 {
+            if button.label.len() > 6 {
                 errors.push(format!(
-                    "Button {} label '{}' exceeds 8 chars",
+                    "Button {} label '{}' exceeds 6 chars",
                     i + 1,
                     button.label
                 ));

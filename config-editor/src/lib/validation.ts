@@ -76,6 +76,13 @@ export const validators = {
     if (value < 1 || value > 99) return 'Keytimes must be between 1 and 99';
     return null;
   },
+
+  // value is stored as 0-15 (displayed as 1-16)
+  channel: (value: number): string | null => {
+    if (!Number.isInteger(value)) return 'Channel must be an integer';
+    if (value < 0 || value > 15) return 'Channel must be between 1 and 16';
+    return null;
+  },
 };
 
 export function validateConfig(config: MidiCaptainConfig): ValidationResult {
@@ -130,6 +137,11 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
         const stepError = validators.pcStep(btn.pc_step);
         if (stepError) errors.set(`buttons[${idx}].pc_step`, stepError);
       }
+    }
+
+    if (btn.channel !== undefined) {
+      const chError = validators.channel(btn.channel);
+      if (chError) errors.set(`buttons[${idx}].channel`, chError);
     }
 
     if (btn.states && (btn.keytimes === undefined || btn.keytimes <= 1)) {
@@ -187,31 +199,59 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
   // Validate encoder
   if (config.encoder?.enabled) {
     const ccError = validators.cc(config.encoder.cc);
-    if (ccError) {
-      errors.set('encoder.cc', ccError);
+    if (ccError) errors.set('encoder.cc', ccError);
+
+    if (config.encoder.channel !== undefined) {
+      const chError = validators.channel(config.encoder.channel);
+      if (chError) errors.set('encoder.channel', chError);
     }
-    
-    if (config.encoder.min !== undefined && config.encoder.max !== undefined) {
-      const rangeError = validators.range(config.encoder.min, config.encoder.max);
-      if (rangeError) {
-        errors.set('encoder.range', rangeError);
+
+    const min = config.encoder.min ?? 0;
+    const max = config.encoder.max ?? 127;
+    const rangeError = validators.range(min, max);
+    if (rangeError) errors.set('encoder.range', rangeError);
+
+    if (config.encoder.initial !== undefined) {
+      const initError = validators.withinRange(config.encoder.initial, min, max);
+      if (initError) errors.set('encoder.initial', `Initial ${initError.toLowerCase()}`);
+    }
+
+    if (config.encoder.push?.enabled) {
+      const pushCcError = validators.cc(config.encoder.push.cc);
+      if (pushCcError) errors.set('encoder.push.cc', pushCcError);
+
+      if (config.encoder.push.channel !== undefined) {
+        const chError = validators.channel(config.encoder.push.channel);
+        if (chError) errors.set('encoder.push.channel', chError);
+      }
+      if (config.encoder.push.cc_on !== undefined) {
+        const e = validators.cc(config.encoder.push.cc_on);
+        if (e) errors.set('encoder.push.cc_on', e);
+      }
+      if (config.encoder.push.cc_off !== undefined) {
+        const e = validators.cc(config.encoder.push.cc_off);
+        if (e) errors.set('encoder.push.cc_off', e);
       }
     }
   }
   
   // Validate expression pedals
-  if (config.expression?.exp1?.enabled) {
-    const ccError = validators.cc(config.expression.exp1.cc);
-    if (ccError) {
-      errors.set('expression.exp1.cc', ccError);
+  for (const [key, exp] of [['exp1', config.expression?.exp1], ['exp2', config.expression?.exp2]] as const) {
+    if (!exp?.enabled) continue;
+    const p = `expression.${key}`;
+
+    const ccError = validators.cc(exp.cc);
+    if (ccError) errors.set(`${p}.cc`, ccError);
+
+    if (exp.channel !== undefined) {
+      const chError = validators.channel(exp.channel);
+      if (chError) errors.set(`${p}.channel`, chError);
     }
-  }
-  
-  if (config.expression?.exp2?.enabled) {
-    const ccError = validators.cc(config.expression.exp2.cc);
-    if (ccError) {
-      errors.set('expression.exp2.cc', ccError);
-    }
+
+    const min = exp.min ?? 0;
+    const max = exp.max ?? 127;
+    const rangeError = validators.range(min, max);
+    if (rangeError) errors.set(`${p}.range`, rangeError);
   }
   
   return {
