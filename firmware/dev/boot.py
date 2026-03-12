@@ -27,6 +27,7 @@ import board
 import digitalio
 import storage
 import supervisor
+import time
 
 # DISABLED for live performance stability - no unexpected resets
 # CP 7.x uses supervisor.disable_autoreload(), not runtime.autoreload
@@ -54,6 +55,7 @@ except Exception:
 switch_1 = digitalio.DigitalInOut(board.GP1)
 switch_1.direction = digitalio.Direction.INPUT
 switch_1.pull = digitalio.Pull.UP
+time.sleep(0.05)  # Allow pull-up to stabilize before reading
 
 switch_held = not switch_1.value          # True when switch is pressed
 enable_usb_drive = dev_mode or switch_held  # dev_mode overrides switch gate
@@ -78,6 +80,9 @@ if enable_usb_drive:
         print("   Release switch and reboot to hide drive")
     try:
         storage.remount("/", readonly=False, label=usb_drive_name)
+    except TypeError:
+        # CircuitPython 7.x doesn't support the label= parameter
+        storage.remount("/", readonly=False)
     except Exception as e:
         print(f"⚠️  Drive label warning: {e}")
 

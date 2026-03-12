@@ -1,7 +1,8 @@
 //! Tauri commands for config file operations
 
 use crate::config::MidiCaptainConfig;
-use std::fs::{self, File};
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::command;
 
@@ -202,11 +203,18 @@ fn verify_device_connected(path: &Path) -> Result<(), ConfigError> {
     Ok(())
 }
 
-/// Sync file to ensure data reaches device before user ejects
-fn sync_file(path: &Path) {
-    if let Ok(file) = File::open(path) {
-        let _ = file.sync_all();
-    }
+/// Write data to a file and sync to physical storage before returning.
+///
+/// `fs::write` closes the file without an explicit fsync, leaving data in the
+/// OS page cache. On a USB-connected FAT32 device (CircuitPython), a power
+/// cycle immediately after save can race the flush and the device boots with
+/// stale data. Keeping the write handle open for `sync_all` before drop
+/// ensures the data reaches the device's flash.
+fn write_sync(path: &Path, data: &[u8]) -> Result<(), std::io::Error> {
+    let mut file = OpenOptions::new().write(true).create(true).truncate(true).open(path)?;
+    file.write_all(data)?;
+    file.sync_all()?;
+    Ok(())
 }
 
 /// Read config from a file path
@@ -248,11 +256,8 @@ pub fn write_config(path: String, config: MidiCaptainConfig) -> Result<(), Confi
     }
 
     let json = serde_json::to_string_pretty(&config)?;
-    fs::write(&path, &json)?;
-    
-    // Sync to ensure data reaches device before user ejects
-    sync_file(path_obj);
-    
+    write_sync(path_obj, json.as_bytes())?;
+
     Ok(())
 }
 
@@ -279,11 +284,8 @@ pub fn write_config_raw(path: String, json: String) -> Result<(), ConfigError> {
 
     // Pretty-print and write
     let pretty = serde_json::to_string_pretty(&config)?;
-    fs::write(&path, &pretty)?;
-    
-    // Sync to ensure data reaches device before user ejects
-    sync_file(path_obj);
-    
+    write_sync(path_obj, pretty.as_bytes())?;
+
     Ok(())
 }
 

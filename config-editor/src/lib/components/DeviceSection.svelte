@@ -75,6 +75,10 @@
       </p>
     </div>
 
+    <!-- USB Drive Name: hidden until CircuitPython 8.x upgrade ships.
+         The backend plumbing (config field, boot.py label= support) is intact.
+         On CP 7.x, storage.remount() doesn't accept label=, so this has no effect.
+         Re-enable this block once the CP upgrade is deployed to users.
     <div class="field-group">
       <label for="usb-drive-name">USB Drive Name:</label>
       <input
@@ -91,6 +95,7 @@
         letters/numbers/underscores). Leave blank to use "MIDICAPTAIN".
       </p>
     </div>
+    -->
 
     <div class="field-group">
       <div class="checkbox-row">
