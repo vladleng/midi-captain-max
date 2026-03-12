@@ -97,40 +97,45 @@ impl From<serde_json::Error> for ConfigError {
 ///
 /// Accepts:
 /// 1. Volumes with a known name (CIRCUITPY or MIDICAPTAIN), or
-/// 2. Any volume whose root contains a config.json that identifies as a MIDI Captain device.
-///    This handles the case where the user has configured a custom `usb_drive_name`.
+/// 2. Volumes whose config.json identifies as MIDI Captain **and** whose
+///    `usb_drive_name` matches the actual volume name (case-insensitive).
+///    This limits the surface: an arbitrary volume won't pass validation
+///    just because someone placed a config.json on it.
 fn validate_device_path(path: &str) -> Result<(), ConfigError> {
     let path = Path::new(path);
-    
+
     // Canonicalize to resolve any .. or symlinks
     let canonical = path.canonicalize().map_err(|e| ConfigError {
         message: format!("Input watch path is neither a file nor a directory: {}", e),
         details: None,
     })?;
-    
+
     // Check if the path is on a valid device volume
     let volume_name = get_path_volume_name(&canonical).ok_or_else(|| ConfigError {
         message: "Could not determine volume name for path".to_string(),
         details: None,
     })?;
-    
+
     // Accept well-known volume names
     if DEVICE_VOLUMES.iter().any(|v| volume_name.eq_ignore_ascii_case(v)) {
         return Ok(());
     }
 
-    // Accept volumes containing a recognizable MIDI Captain config.json.
-    // This handles custom usb_drive_name values set by the user.
+    // Accept custom-named volumes only when the config's usb_drive_name
+    // matches the actual volume name.  This prevents a stray config.json
+    // on an unrelated volume from opening the security gate.
     if let Some(volume_path) = get_volume_path(&canonical) {
         let config_path = volume_path.join("config.json");
-        if crate::device::is_midi_captain_config(&config_path) {
-            return Ok(());
+        if let Some(declared_name) = crate::device::parse_midi_captain_config(&config_path) {
+            if declared_name.eq_ignore_ascii_case(&volume_name) {
+                return Ok(());
+            }
         }
     }
 
     Err(ConfigError {
         message: format!(
-            "Path must be on a MIDI Captain device (CIRCUITPY, MIDICAPTAIN, or a custom-named volume with a MIDI Captain config.json), found: {}",
+            "Path must be on a MIDI Captain device (CIRCUITPY, MIDICAPTAIN, or a custom-named volume whose config.json usb_drive_name matches), found: {}",
             volume_name
         ),
         details: None,

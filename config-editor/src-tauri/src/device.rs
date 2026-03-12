@@ -21,17 +21,29 @@ const DEVICE_VOLUMES: &[&str] = &["CIRCUITPY", "MIDICAPTAIN"];
 /// Used as a fallback when the volume name is not in `DEVICE_VOLUMES` —
 /// i.e., the user has configured a custom `usb_drive_name` in their config.
 pub fn is_midi_captain_config(config_path: &std::path::Path) -> bool {
+    parse_midi_captain_config(config_path).is_some()
+}
+
+/// Parse a config.json and return the `usb_drive_name` if it's a valid
+/// MIDI Captain config (has `"device": "std10"` or `"mini6"`).
+/// Returns `None` if the file doesn't exist, isn't valid JSON, or isn't
+/// a MIDI Captain config.
+pub fn parse_midi_captain_config(config_path: &std::path::Path) -> Option<String> {
     if !config_path.exists() {
-        return false;
+        return None;
     }
-    if let Ok(contents) = std::fs::read_to_string(config_path) {
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
-            if let Some(device) = value.get("device").and_then(|v| v.as_str()) {
-                return device == "std10" || device == "mini6";
-            }
-        }
+    let contents = std::fs::read_to_string(config_path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&contents).ok()?;
+    let device = value.get("device").and_then(|v| v.as_str())?;
+    if device != "std10" && device != "mini6" {
+        return None;
     }
-    false
+    // Return the usb_drive_name if present, otherwise the default
+    let drive_name = value
+        .get("usb_drive_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("MIDICAPTAIN");
+    Some(drive_name.to_string())
 }
 
 /// Get the volumes directory for the current platform
@@ -137,18 +149,30 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
 }
 
 /// Check if a volume is a MIDI Captain device.
-/// Accepts volumes with a known name (CIRCUITPY, MIDICAPTAIN) OR any volume
-/// that contains a config.json with a recognized MIDI Captain device type field.
-/// The latter handles the case where the user has configured a custom usb_drive_name.
+///
+/// Accepts:
+/// 1. Volumes with a known name (CIRCUITPY, MIDICAPTAIN), or
+/// 2. Volumes whose config.json identifies as MIDI Captain **and** whose
+///    `usb_drive_name` matches the actual volume name (case-insensitive).
+///    This prevents treating arbitrary volumes as devices just because
+///    someone placed a config.json on them.
 fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {
     let name = get_volume_name(path)?;
     let config_path = path.join("config.json");
     let has_config = config_path.exists();
 
     let is_known_name = DEVICE_VOLUMES.iter().any(|v| name.eq_ignore_ascii_case(v));
-    let has_midi_captain_config = is_midi_captain_config(&config_path);
 
-    if is_known_name || has_midi_captain_config {
+    // For unknown volume names, require the config's usb_drive_name to match
+    // the actual volume name. This limits the security surface: a config.json
+    // on an arbitrary volume won't pass unless its declared name matches.
+    let config_matches_volume = || {
+        parse_midi_captain_config(&config_path)
+            .map(|declared_name| declared_name.eq_ignore_ascii_case(&name))
+            .unwrap_or(false)
+    };
+
+    if is_known_name || config_matches_volume() {
         Some(DetectedDevice {
             name: name.to_string(),
             path: path.clone(),
@@ -478,24 +502,41 @@ mod tests {
 
     #[test]
     #[cfg(not(target_os = "windows"))]
-    fn test_check_volume_custom_name_with_midi_captain_config() {
-        // A volume with an arbitrary name but a MIDI Captain config.json should be detected.
-        // We create a tempdir whose *basename* acts as the "volume name" (get_volume_name on
-        // Unix returns the last path component).
-        let dir = tempfile::TempDir::with_prefix("MYRIG").unwrap();
+    fn test_check_volume_custom_name_with_matching_config() {
+        // A volume whose basename matches the config's usb_drive_name should be detected.
+        // We create a tempdir with a known suffix so the basename is predictable.
+        let dir = tempfile::tempdir().unwrap();
+        // Determine the actual volume name (tempdir basename)
+        let vol_name = dir.path().file_name().unwrap().to_string_lossy().to_string();
         let config_path = dir.path().join("config.json");
+        // Set usb_drive_name to match the volume basename
         std::fs::write(
             &config_path,
-            r#"{"device": "std10", "usb_drive_name": "MYRIG", "buttons": []}"#,
+            format!(r#"{{"device": "std10", "usb_drive_name": "{}", "buttons": []}}"#, vol_name),
         )
         .unwrap();
 
         let result = check_volume(&dir.path().to_path_buf());
-        assert!(result.is_some(), "Custom-named volume should be detected via config content");
+        assert!(result.is_some(), "Custom-named volume should be detected when config name matches");
         let device = result.unwrap();
         assert!(device.has_config);
-        // Volume name comes from the directory basename (last component of path)
-        assert!(!device.name.is_empty());
+    }
+
+    #[test]
+    #[cfg(not(target_os = "windows"))]
+    fn test_check_volume_custom_name_mismatch_rejected() {
+        // A valid MIDI Captain config.json on a volume whose name does NOT match
+        // the config's usb_drive_name should be rejected (security constraint).
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("config.json");
+        std::fs::write(
+            &config_path,
+            r#"{"device": "std10", "usb_drive_name": "TOTALLY_DIFFERENT", "buttons": []}"#,
+        )
+        .unwrap();
+
+        let result = check_volume(&dir.path().to_path_buf());
+        assert!(result.is_none(), "Volume with non-matching usb_drive_name should be rejected");
     }
 
     #[test]
@@ -506,5 +547,29 @@ mod tests {
         // No config.json written
         let result = check_volume(&dir.path().to_path_buf());
         assert!(result.is_none(), "Unknown volume with no config should not be detected");
+    }
+
+    #[test]
+    fn test_parse_midi_captain_config_returns_drive_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{"device": "std10", "usb_drive_name": "MYRIG", "buttons": []}"#).unwrap();
+        assert_eq!(parse_midi_captain_config(&path).as_deref(), Some("MYRIG"));
+    }
+
+    #[test]
+    fn test_parse_midi_captain_config_defaults_to_midicaptain() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{"device": "mini6", "buttons": []}"#).unwrap();
+        assert_eq!(parse_midi_captain_config(&path).as_deref(), Some("MIDICAPTAIN"));
+    }
+
+    #[test]
+    fn test_parse_midi_captain_config_returns_none_for_non_device() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{"device": "unknown"}"#).unwrap();
+        assert!(parse_midi_captain_config(&path).is_none());
     }
 }
