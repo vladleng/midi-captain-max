@@ -45,9 +45,11 @@ export const canRedo = derived(formState, $state =>
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function loadConfig(newConfig: MidiCaptainConfig) {
-  formState.update(state => ({
-    config: structuredClone(newConfig),
-    history: [structuredClone(newConfig)],
+  // Ensure display always exists so DisplaySection can traverse into it
+  const config = { ...newConfig, display: newConfig.display ?? {} };
+  formState.update(_state => ({
+    config: structuredClone(config),
+    history: [structuredClone(config)],
     historyIndex: 0,
     validationErrors: new Map(),
     isDirty: false,
@@ -362,7 +364,12 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
 }
 
 export function normalizeConfig(cfg: MidiCaptainConfig): MidiCaptainConfig {
-  return { ...cfg, buttons: cfg.buttons.map(normalizeButton) };
+  const normalized: MidiCaptainConfig = { ...cfg, buttons: cfg.buttons.map(normalizeButton) };
+  // Strip display if no fields were set (avoids writing `"display": {}` for untouched configs)
+  if (normalized.display && Object.values(normalized.display).every(v => v === undefined)) {
+    delete normalized.display;
+  }
+  return normalized;
 }
 
 export function validate() {
