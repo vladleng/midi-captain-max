@@ -321,6 +321,42 @@ export function setDevice(deviceType: DeviceType) {
   });
 }
 
+// Strip type-specific fields that don't belong to the button's current type.
+// Prevents stale cc/note/program/etc. from accumulating in the saved JSON when
+// the user switches a button's type.
+function normalizeButton(btn: ButtonConfig): ButtonConfig {
+  const type = btn.type ?? 'cc';
+  const { cc, cc_on, cc_off, note, velocity_on, velocity_off, program, pc_step, ...common } = btn;
+
+  switch (type) {
+    case 'cc':
+      return {
+        ...common,
+        ...(cc !== undefined && { cc }),
+        ...(cc_on !== undefined && { cc_on }),
+        ...(cc_off !== undefined && { cc_off }),
+      };
+    case 'note':
+      return {
+        ...common,
+        ...(note !== undefined && { note }),
+        ...(velocity_on !== undefined && { velocity_on }),
+        ...(velocity_off !== undefined && { velocity_off }),
+      };
+    case 'pc':
+      return { ...common, ...(program !== undefined && { program }) };
+    case 'pc_inc':
+    case 'pc_dec':
+      return { ...common, ...(pc_step !== undefined && { pc_step }) };
+    default:
+      return btn;
+  }
+}
+
+export function normalizeConfig(cfg: MidiCaptainConfig): MidiCaptainConfig {
+  return { ...cfg, buttons: cfg.buttons.map(normalizeButton) };
+}
+
 export function validate() {
   const state = get(formState);
   const result = validateConfig(state.config);

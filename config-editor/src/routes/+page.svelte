@@ -17,7 +17,7 @@
   import EncoderSection from '$lib/components/EncoderSection.svelte';
   import ExpressionSection from '$lib/components/ExpressionSection.svelte';
   import DisplaySection from '$lib/components/DisplaySection.svelte';
-  import { loadConfig, validate, config } from '$lib/formStore';
+  import { loadConfig, validate, normalizeConfig, config } from '$lib/formStore';
   
   // Event listener cleanup functions
   let unlistenConnect: (() => void) | undefined;
@@ -182,7 +182,7 @@
     $isLoading = true;
     
     try {
-      const configObj = get(config);
+      const configObj = normalizeConfig(get(config));
       const configJson = JSON.stringify(configObj, null, 2);
       
       await writeConfigRaw($selectedDevice.config_path, configJson);
