@@ -199,7 +199,7 @@ jobs:
     name: Build Config Editor (macOS)
     runs-on: macos-latest
     timeout-minutes: 30
-    needs: lint
+    needs: [lint, test-config-editor-rust]
     permissions:
       contents: read
     steps:
@@ -312,7 +312,7 @@ jobs:
     name: Build Config Editor (Windows)
     runs-on: windows-latest
     timeout-minutes: 30
-    needs: lint
+    needs: [lint, test-config-editor-rust]
     permissions:
       contents: read
     steps:
