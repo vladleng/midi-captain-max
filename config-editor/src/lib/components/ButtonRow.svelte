@@ -20,7 +20,7 @@
   let isNote = $derived(msgType === 'note');
   let isPC = $derived(msgType === 'pc');
   let isPCIncDec = $derived(msgType === 'pc_inc' || msgType === 'pc_dec');
-  let showMode = $derived(true);
+  let showMode = $derived(isCC || isNote);
 
   function handleLabelChange(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -299,14 +299,15 @@
         <option value="momentary">Momentary</option>
       </select>
     </div>
-    <div class="field">
-      <label class="field-label">LED Off Mode:</label>
-      <select class="select" value={button.off_mode || 'dim'} onchange={handleOffModeChange} disabled={disabled}>
-        <option value="dim">Dim</option>
-        <option value="off">Off</option>
-      </select>
-    </div>
   {/if}
+
+  <div class="field">
+    <label class="field-label">LED Off Mode:</label>
+    <select class="select" value={button.off_mode || 'dim'} onchange={handleOffModeChange} disabled={disabled}>
+      <option value="dim">Dim</option>
+      <option value="off">Off</option>
+    </select>
+  </div>
 
   {#if hasKeytimes && !disabled}
     <div class="states-section">
