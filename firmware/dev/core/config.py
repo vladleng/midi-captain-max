@@ -341,9 +341,10 @@ def validate_usb_drive_name(name):
     # Convert to uppercase and strip whitespace
     name = name.upper().strip()
     
-    # Filter to valid characters (alphanumeric + underscore)
-    # Using generator expression for memory efficiency on embedded hardware
-    name = "".join(c for c in name if c.isalnum() or c == "_")
+    # Filter to valid characters (alphanumeric + underscore).
+    # Avoid str.isalnum() — not available in CircuitPython 7.x.
+    # name is already uppercased, so only A-Z, 0-9, and _ are valid.
+    name = "".join(c for c in name if ('A' <= c <= 'Z') or ('0' <= c <= '9') or c == '_')
     
     # Truncate to 11 characters
     if len(name) > 11:

@@ -44,8 +44,8 @@ try:
     from config import load_config, get_usb_drive_name, get_dev_mode
 
     cfg = load_config("/config.json")
-    usb_drive_name = get_usb_drive_name(cfg)
     dev_mode = get_dev_mode(cfg)
+    usb_drive_name = get_usb_drive_name(cfg)
 except Exception:
     # If config fails to load, use safe defaults (performance mode)
     pass
@@ -59,6 +59,7 @@ time.sleep(0.05)  # Allow pull-up to stabilize before reading
 
 switch_held = not switch_1.value          # True when switch is pressed
 enable_usb_drive = dev_mode or switch_held  # dev_mode overrides switch gate
+
 
 # CRITICAL: disable_usb_drive() must be called BEFORE any USB initialization.
 # Always check the disable condition first; remount() would initialize USB.
@@ -79,10 +80,13 @@ if enable_usb_drive:
     if not dev_mode:
         print("   Release switch and reboot to hide drive")
     try:
-        storage.remount("/", readonly=False, label=usb_drive_name)
+        # readonly=True: CircuitPython is read-only, USB host has write access
+        # (needed for config editor to save files to the device)
+        storage.remount("/", readonly=True, label=usb_drive_name)
     except TypeError:
-        # CircuitPython 7.x doesn't support the label= parameter
-        storage.remount("/", readonly=False)
+        # CircuitPython 7.x doesn't support label=; skip remount so the USB
+        # host retains default write access
+        pass
     except Exception as e:
         print(f"⚠️  Drive label warning: {e}")
 
