@@ -41,7 +41,7 @@ from adafruit_midi.note_off import NoteOff
 
 # Import core modules (testable logic)
 from core.colors import COLORS, get_color, dim_color, rgb_to_hex, get_off_color, get_off_color_for_display
-from core.config import load_config as _load_config_from_file, get_display_config, get_button_state_config
+from core.config import load_config as _load_config_from_file, validate_config, get_display_config, get_button_state_config
 from core.button import Switch, ButtonState
 
 # =============================================================================
@@ -202,23 +202,23 @@ def load_config():
     cfg = _load_config_from_file("/config.json", button_count=BUTTON_COUNT)
     if "buttons" in cfg and len(cfg["buttons"]) > 0:
         print("Loaded config.json")
-        return cfg
+        return validate_config(cfg, button_count=BUTTON_COUNT)
 
     # Try device-specific default
     device_config = f"/config-{DETECTED_DEVICE}.json"
     cfg = _load_config_from_file(device_config, button_count=BUTTON_COUNT)
     if "buttons" in cfg and len(cfg["buttons"]) > 0:
         print(f"Loaded {device_config}")
-        return cfg
+        return validate_config(cfg, button_count=BUTTON_COUNT)
 
     # Built-in fallback
     print("No config found, using built-in defaults")
-    return {
+    return validate_config({
         "buttons": [
             {"label": str(i + 1), "cc": 20 + i, "color": "white"}
             for i in range(BUTTON_COUNT)
         ]
-    }
+    }, button_count=BUTTON_COUNT)
 
 
 config = load_config()
@@ -335,8 +335,8 @@ vbat_alpha = 0.01
 midi = adafruit_midi.MIDI(
     midi_in=usb_midi.ports[0],
     midi_out=usb_midi.ports[1],
-    in_channel=0,
-    out_channel=0,
+    in_channel=None,  # receive on all channels; per-button channel filtering done in handle_midi()
+    out_channel=0,    # default TX channel (overridden per-message via midi.send(..., channel=X))
     in_buf_size=64,
 )
 print("MIDI initialized")
@@ -671,7 +671,7 @@ def handle_switches():
                 if mode == "momentary":
                     val = cc_on if pressed else cc_off
                     set_button_state(btn_num, pressed)
-                    midi.send(ControlChange(cc, val, channel=channel))
+                    midi.send(ControlChange(cc, val), channel=channel)
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, momentary)")
                     status_label.text = f"TX CC{cc}={val}"
                 elif pressed:
@@ -680,7 +680,7 @@ def handle_switches():
                     btn_state.state = new_state
                     set_button_state(btn_num, new_state)
                     val = cc_on if new_state else cc_off
-                    midi.send(ControlChange(cc, val, channel=channel))
+                    midi.send(ControlChange(cc, val), channel=channel)
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, toggle)")
                     status_label.text = f"TX CC{cc}={'ON' if new_state else 'OFF'}"
 
@@ -693,12 +693,12 @@ def handle_switches():
                 vel_off = state_cfg.get("velocity_off", 0)
                 if mode == "momentary":
                     if pressed:
-                        midi.send(NoteOn(note, vel_on, channel=channel))
+                        midi.send(NoteOn(note, vel_on), channel=channel)
                         set_button_state(btn_num, True)
                         print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel_on} (switch {btn_num})")
                         status_label.text = f"TX Note{note}"
                     else:
-                        midi.send(NoteOff(note, vel_off, channel=channel))
+                        midi.send(NoteOff(note, vel_off), channel=channel)
                         set_button_state(btn_num, False)
                         print(f"[MIDI TX] Ch{channel+1} NoteOff{note} (switch {btn_num})")
                 elif pressed:
@@ -707,11 +707,11 @@ def handle_switches():
                     btn_state.state = new_state
                     set_button_state(btn_num, new_state)
                     if new_state:
-                        midi.send(NoteOn(note, vel_on, channel=channel))
+                        midi.send(NoteOn(note, vel_on), channel=channel)
                         print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel_on} (switch {btn_num}, toggle on)")
                         status_label.text = f"TX Note{note} ON"
                     else:
-                        midi.send(NoteOff(note, vel_off, channel=channel))
+                        midi.send(NoteOff(note, vel_off), channel=channel)
                         print(f"[MIDI TX] Ch{channel+1} NoteOff{note} (switch {btn_num}, toggle off)")
                         status_label.text = f"TX Note{note} OFF"
 
@@ -719,7 +719,7 @@ def handle_switches():
                 btn_state.advance_keytime()
                 state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
                 program = state_cfg.get("program", 0)
-                midi.send(ProgramChange(program, channel=channel))
+                midi.send(ProgramChange(program), channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
                 status_label.text = f"TX PC{program}"
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
@@ -729,7 +729,7 @@ def handle_switches():
                 state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
                 step = state_cfg.get("pc_step", 1)
                 pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
-                midi.send(ProgramChange(pc_values[channel], channel=channel))
+                midi.send(ProgramChange(pc_values[channel]), channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, inc)")
                 status_label.text = f"TX PC{pc_values[channel]}"
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
@@ -739,7 +739,7 @@ def handle_switches():
                 state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
                 step = state_cfg.get("pc_step", 1)
                 pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
-                midi.send(ProgramChange(pc_values[channel], channel=channel))
+                midi.send(ProgramChange(pc_values[channel]), channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, dec)")
                 status_label.text = f"TX PC{pc_values[channel]}"
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
@@ -760,13 +760,13 @@ def handle_encoder_button():
             if pressed:
                 encoder_push_state = not encoder_push_state
                 cc_val = ENC_PUSH_CC_ON if encoder_push_state else ENC_PUSH_CC_OFF
-                midi.send(ControlChange(CC_ENCODER_PUSH, cc_val, channel=ENC_PUSH_CHANNEL))
+                midi.send(ControlChange(CC_ENCODER_PUSH, cc_val), channel=ENC_PUSH_CHANNEL)
                 print(f"[MIDI TX] Ch{ENC_PUSH_CHANNEL+1} CC{CC_ENCODER_PUSH}={cc_val} (encoder push, toggle)")
                 status_label.text = f"TX CC{CC_ENCODER_PUSH}={'ON' if encoder_push_state else 'OFF'}"
         else:
             # Momentary mode: send on press and release
             cc_val = ENC_PUSH_CC_ON if pressed else ENC_PUSH_CC_OFF
-            midi.send(ControlChange(CC_ENCODER_PUSH, cc_val, channel=ENC_PUSH_CHANNEL))
+            midi.send(ControlChange(CC_ENCODER_PUSH, cc_val), channel=ENC_PUSH_CHANNEL)
             print(f"[MIDI TX] Ch{ENC_PUSH_CHANNEL+1} CC{CC_ENCODER_PUSH}={cc_val} (encoder push, momentary)")
             status_label.text = f"TX CC{CC_ENCODER_PUSH}={cc_val}"
 
@@ -795,12 +795,12 @@ def handle_encoder():
             if new_slot != encoder_slot:
                 encoder_slot = new_slot
                 # Output CC is the slot number (0 to steps-1)
-                midi.send(ControlChange(CC_ENCODER, encoder_slot, channel=ENC_CHANNEL))
+                midi.send(ControlChange(CC_ENCODER, encoder_slot), channel=ENC_CHANNEL)
                 print(f"[ENCODER] Ch{ENC_CHANNEL+1} CC{CC_ENCODER}={encoder_slot} (slot)")
                 status_label.text = f"ENC slot {encoder_slot}"
         else:
             # Normal mode: send every change
-            midi.send(ControlChange(CC_ENCODER, encoder_value, channel=ENC_CHANNEL))
+            midi.send(ControlChange(CC_ENCODER, encoder_value), channel=ENC_CHANNEL)
             print(f"[ENCODER] Ch{ENC_CHANNEL+1} CC{CC_ENCODER}={encoder_value}")
             status_label.text = f"ENC={encoder_value}"
 
@@ -833,7 +833,7 @@ def handle_expression():
             threshold = exp1_config.get("threshold", 2)
             if abs(val1 - exp1_last) >= threshold:
                 exp1_last = val1
-                midi.send(ControlChange(CC_EXP1, val1, channel=EXP1_CHANNEL))
+                midi.send(ControlChange(CC_EXP1, val1), channel=EXP1_CHANNEL)
                 lbl = exp1_config.get("label", "EXP1")
                 print(f"[{lbl}] Ch{EXP1_CHANNEL+1} CC{CC_EXP1}={val1}")
                 # Update display
@@ -860,7 +860,7 @@ def handle_expression():
             threshold = exp2_config.get("threshold", 2)
             if abs(val2 - exp2_last) >= threshold:
                 exp2_last = val2
-                midi.send(ControlChange(CC_EXP2, val2, channel=EXP2_CHANNEL))
+                midi.send(ControlChange(CC_EXP2, val2), channel=EXP2_CHANNEL)
                 lbl = exp2_config.get("label", "EXP2")
                 print(f"[{lbl}] Ch{EXP2_CHANNEL+1} CC{CC_EXP2}={val2}")
                 # Update display
