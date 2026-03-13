@@ -207,6 +207,16 @@ CircuitPython 7.3.1 does NOT support all CPython syntax. These features pass `py
 
 **CI enforces this** via the "CircuitPython 7.x compatibility guard" step in `ci.yml`. It greps `firmware/dev/` for banned patterns and fails the build.
 
+**Several `str` methods are missing in CircuitPython 7.x.** These work in desktop Python and pass all tests, but raise `AttributeError` at runtime on device:
+
+| Missing method | Use Instead |
+|----------------|-------------|
+| `str.isalnum()` | `('A' <= c <= 'Z') or ('0' <= c <= '9')` (after `.upper()`) |
+| `str.isalpha()` | `'A' <= c <= 'Z'` (after `.upper()`) |
+| `str.isdigit()` | `'0' <= c <= '9'` |
+
+This is especially dangerous because the error occurs silently in `boot.py` (the `except Exception: pass` fallback swallows it), causing downstream config values like `dev_mode` to never be read.
+
 **Barrel imports are dangerous on embedded.** Keep `__init__.py` files minimal (no re-exports). If `__init__.py` imports a submodule, CircuitPython parses the entire submodule eagerly — a single syntax error in any submodule prevents the whole package from importing.
 
 ---
@@ -250,6 +260,16 @@ Device-specific constants live in `firmware/dev/devices/`:
 - Use `screen` with auto-reconnect loop for serial monitoring. See docs/screen-cheatsheet.md for usage tips.
 - Experiments in `firmware/dev/experiments/` for isolated testing
 
+#### USB Drive / Boot Mode Hardware Tests
+When changing `boot.py`, `usb_drive_name`, or `dev_mode`, verify on physical hardware:
+1. **Performance mode** (default): power on without Switch 1 → no USB drive appears; serial shows "🔒 USB drive disabled"
+2. **Update mode**: hold Switch 1 while powering on → drive mounts with configured name; serial shows "🔓 USB DRIVE ENABLED as '…'"
+3. **Dev mode** (`dev_mode: true`): drive always mounts on boot without switch press
+4. **Custom name**: set `usb_drive_name`, power-cycle with Switch 1 → drive appears with that name
+5. **Validation**: lowercase, special chars, >11 chars, all-invalid → verify auto-correction or fallback to `"MIDICAPTAIN"`
+6. **Config failure**: corrupt config.json → device still boots, falls back to `"MIDICAPTAIN"`
+7. **Persistence**: custom name survives power cycles and USB disconnects
+
 ### Deployment
 
 Use `tools/deploy.sh` for dev deploys (handles ordering, sync, and device detection).
@@ -268,8 +288,28 @@ Both distribution paths must include the same set of files and write the `VERSIO
 ### Desktop Testing
 - **pytest** with CircuitPython hardware mocks in `tests/mocks/`
 - Mocks cover: `board`, `digitalio`, `neopixel`, `displayio`, `busio`, `rotaryio`, `analogio`, `usb_midi`, `terminalio`
-- Tests: `test_button_state.py`, `test_config.py`, `test_colors.py`, `test_neopixel_mock.py`, `test_switch_mock.py`
+- Tests: `test_button_state.py`, `test_config.py`, `test_colors.py`, `test_neopixel_mock.py`, `test_switch_mock.py`, `test_usb_drive_name.py`
 - Run: `pytest` from project root
+
+### Rust Tests (Config Editor)
+Unit tests for the Tauri backend live in `config-editor/src-tauri/src/` (in `config.rs` and `device.rs`).
+
+**Requires GTK system libraries.** Install once per machine before running:
+
+```bash
+# macOS — no extra steps needed; Xcode CLT provides required frameworks
+# Ubuntu / Debian
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+Run:
+
+```bash
+cd config-editor/src-tauri
+cargo test
+```
+
+These tests are also run in CI (see the `test-config-editor-rust` job in `ci.yml`).  CI installs the same packages automatically.
 
 ---
 
@@ -338,8 +378,12 @@ Track features, bugs, and future work via [GitHub Issues](https://github.com/MC-
 - [x] Keytimes cycling with per-state overrides
 - [x] Display settings section
 - [x] Per-button flash duration (PC types)
+- [x] Custom USB drive naming (`usb_drive_name` in config + GUI field)
+- [x] Dev vs Performance mode (`dev_mode` in config + GUI checkbox)
 
 ### Future
+- [ ] CI workflow DRY: `Setup Node.js` + `Install frontend dependencies` duplicated between `build-config-editor-macos` and `build-config-editor-windows` — could be a composite action
+- [ ] Release workflow DRY: find/rename/warn pattern in `Prepare release assets` repeats 3× (DMG, MSI, NSIS) — could be a shell function
 - [ ] Windows Signing Cert
 - [ ] Support for 1/2/4-switch variants
 - [ ] Custom display layouts
@@ -402,7 +446,7 @@ Save button → saveToDevice()
 
 ### Critical: Rust ↔ TypeScript Type Sync
 
-**Serde silently drops unknown fields** — if a field exists in TypeScript but not in the Rust struct, it is deserialized away and the re-serialized output omits it. No error, no warning. This is how all multi-type button fields (`type`, `note`, `velocity_on`, `velocity_off`, `program`, `pc_step`, `keytimes`, `states`) and `display` were silently stripped on save.
+**Serde silently drops unknown fields** — if a field exists in TypeScript but not in the Rust struct, it is deserialized away and the re-serialized output omits it. No error, no warning. This is how all multi-type button fields (`type`, `note`, `velocity_on`, `velocity_off`, `program`, `pc_step`, `keytimes`, `states`), `display`, `usb_drive_name`, and `dev_mode` were silently stripped on save in earlier versions.
 
 **Rule**: whenever you add a field to `types.ts`, add the matching field to the Rust `ButtonConfig`/`MidiCaptainConfig` struct in `config.rs` with `#[serde(skip_serializing_if = "Option::is_none")]`.
 
@@ -478,12 +522,29 @@ Top-level config fields:
 {
   "device": "std10|mini6",
   "global_channel": 0,
+  "usb_drive_name": "MIDICAPTAIN",
+  "dev_mode": false,
   "buttons": [...],
   "encoder": { "enabled": true, "cc": 11, "label": "ENC", "min": 0, "max": 127, "initial": 64, "steps": null, "channel": 0, "push": { "enabled": true, "cc": 14, "label": "PUSH", "mode": "toggle|momentary", "cc_on": 127, "cc_off": 0, "channel": 0 } },
   "expression": { "exp1": { "enabled": true, "cc": 12, "label": "EXP1", "min": 0, "max": 127, "polarity": "normal|inverted", "threshold": 2, "channel": 0 }, "exp2": {...} },
   "display": { "button_text_size": "small|medium|large", "status_text_size": "small|medium|large", "expression_text_size": "small|medium|large" }
 }
 ```
+
+**`usb_drive_name`** — label applied to the FAT32 volume when USB is enabled. Defaults to `"MIDICAPTAIN"`. Configurable in the GUI "Device Settings" section. Validation rules (enforced by `validate_usb_drive_name()` in `core/config.py`): max 11 chars, uppercase alphanumeric + underscore only, auto-uppercased, special chars stripped, empty/all-invalid falls back to `"MIDICAPTAIN"`.
+
+Tooling support for custom names:
+- **`deploy.sh`** reads `usb_drive_name` from `config.json` and `config-mini6.json` and adds them to the mount-point search. Candidate order: `CIRCUITPY`, `MIDICAPTAIN`, then any `usb_drive_name` values found in local configs. Checked under `/Volumes/`, `/media/$USER/`, `/run/media/$USER/`.
+- **GUI config editor** detects devices by volume name *and* config content. Known names (`CIRCUITPY`, `MIDICAPTAIN`) are always accepted. Custom-named volumes are accepted only when the config.json inside them (a) has `"device": "std10"` or `"mini6"`, and (b) the `usb_drive_name` in that config matches the actual volume name (case-insensitive). This cross-check prevents a stray config.json on an unrelated volume from being treated as a device. The same cross-check applies in `validate_device_path()` (path security gate in `commands.rs`).
+
+**`dev_mode`** — boolean controlling USB drive mount behaviour at boot:
+
+| Value | Mode | USB drive behaviour |
+|-------|------|---------------------|
+| `false` (default) | **Performance** | Hidden on boot; hold Switch 1 (GP1) while powering on to temporarily mount |
+| `true` | **Development** | Always mounts on every boot — no switch press needed |
+
+`boot.py` logic: `enable_usb_drive = dev_mode or switch_held`. Dev mode overrides the switch gate entirely. Configurable via the GUI "Device Settings" checkbox.
 
 Channels are stored as 0-15 internally; displayed as 1-16 in the GUI. The conversion is in `ButtonRow.svelte` `handleChannelChange` (subtract 1 on input) and `effectiveChannel`/`displayChannel` derived values (add 1 for display).
 
@@ -551,8 +612,32 @@ Keytimes: `btn_state.advance_keytime()` is called before reading `state_cfg`, so
 
 `firmware/dev/core/config.py` handles config parsing. Key points:
 - `get_display_config(config)` returns display settings with defaults (`"medium"` for all sizes)
+- `get_usb_drive_name(config)` returns the validated USB volume label (calls `validate_usb_drive_name()`, defaults to `"MIDICAPTAIN"`)
+- `get_dev_mode(config)` returns `bool(config.get("dev_mode", False))` — always safe to call even if the key is absent
+- `validate_usb_drive_name(name)` enforces FAT32 label rules: uppercase, alphanumeric + underscore, max 11 chars; returns `"MIDICAPTAIN"` for empty/invalid input
 - `STATE_OVERRIDE_FIELDS = ("cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program", "pc_step", "color", "label")` — fields that can be overridden per keytime state
 - Default button: `{"label": str(i+1), "cc": 20+i, "color": "white"}`
+
+### USB Drive Behaviour (boot.py)
+
+`boot.py` runs before `code.py` and before USB is fully initialized. This imposes a **critical ordering constraint**: `storage.disable_usb_drive()` must be called **before** any `storage.remount()` call (which initializes USB).
+
+**Two-mode logic:**
+```python
+dev_mode   = get_dev_mode(cfg)          # from config.json
+switch_held = not switch_1.value        # GP1, pull-up: LOW = pressed
+enable_usb_drive = dev_mode or switch_held
+
+if not enable_usb_drive:
+    storage.disable_usb_drive()         # MUST be first
+
+if enable_usb_drive:
+    storage.remount("/", readonly=False, label=usb_drive_name)
+```
+
+**Why two `if` blocks instead of `if/else`**: the original `boot.py` (before custom drive names) never called `remount()`, so `if/else` was fine. Adding `storage.remount()` for custom labels introduced an ordering constraint: `disable_usb_drive()` must execute before any `remount()` call. Using two separate `if` blocks makes this ordering explicit in source — `disable` always appears above `remount`, preventing future refactors from accidentally reversing the calls.
+
+**Boot sequence for config reads**: `boot.py` runs before normal `sys.path` is established. It manually inserts `/core` via `sys.path.insert(0, "/core")` to import `config.py`. If config loading fails (missing file, parse error), a bare `except Exception` swallows it and safe defaults are used.
 
 ---
 
@@ -561,11 +646,11 @@ Keytimes: `btn_state.advance_keytime()` is called before reading `state_cfg`, so
 | Path | Purpose |
 |------|---------|
 | `firmware/dev/code.py` | **Active**: Unified firmware with config, display, bidirectional MIDI |
-| `firmware/dev/boot.py` | Disables autoreload for stage reliability |
-| `firmware/dev/config.json` | STD10 default config (button labels, CC numbers, colors) |
+| `firmware/dev/boot.py` | Disables autoreload; USB drive gated by `dev_mode` config flag or Switch 1 hold; applies custom drive label |
+| `firmware/dev/config.json` | STD10 default config (button labels, CC numbers, colors, drive name, dev_mode) |
 | `firmware/dev/config-mini6.json` | Mini6 template config (copy to device as config.json) |
 | `firmware/dev/VERSION` | Firmware version (generated, gitignored) |
-| `firmware/dev/core/config.py` | Config loading and validation; `STATE_OVERRIDE_FIELDS`; `get_display_config()` |
+| `firmware/dev/core/config.py` | Config loading; `get_usb_drive_name()`, `validate_usb_drive_name()`, `get_dev_mode()`, `get_display_config()`; `STATE_OVERRIDE_FIELDS` |
 | `firmware/dev/core/button.py` | `ButtonState` class: toggle/momentary mode, keytimes cycling |
 | `firmware/dev/core/colors.py` | Color palette and `get_off_color()` utilities |
 | `firmware/dev/devices/std10.py` | STD10 hardware constants |
@@ -582,6 +667,7 @@ Keytimes: `btn_state.advance_keytime()` is called before reading `state_cfg`, so
 | `config-editor/src/lib/types.ts` | TypeScript config interfaces — must stay in sync with Rust structs |
 | `config-editor/src/lib/validation.ts` | Client-side validation; must mirror Rust validation in `config.rs` |
 | `config-editor/src/lib/components/ButtonRow.svelte` | Per-button form row; `onUpdate` callback prop |
+| `config-editor/src/lib/components/DeviceSection.svelte` | Device type, global channel, USB drive name, and dev mode fields |
 | `config-editor/src-tauri/src/config.rs` | Rust config structs + validation + round-trip tests |
 | `config-editor/src-tauri/src/commands.rs` | Tauri IPC commands: read/write/validate, path security |
 | `config-editor/src-tauri/src/device.rs` | USB device detection and hot-plug watcher |

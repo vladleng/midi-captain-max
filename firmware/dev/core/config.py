@@ -303,3 +303,68 @@ def get_display_config(cfg):
         "status_text_size": status_size,
         "expression_text_size": expression_size,
     }
+
+
+def get_dev_mode(cfg):
+    """Extract development mode setting from config.
+
+    In development mode the USB drive mounts on every boot without needing
+    to hold Switch 1.  In performance mode (the default) the drive is hidden
+    unless Switch 1 is held during boot.
+
+    Args:
+        cfg: Full config dict
+
+    Returns:
+        True if development mode is enabled, False otherwise
+    """
+    return bool(cfg.get("dev_mode", False))
+
+
+def validate_usb_drive_name(name):
+    """Validate USB drive name for FAT32 compatibility.
+    
+    FAT32 volume labels have strict requirements:
+    - Maximum 11 characters
+    - Uppercase alphanumeric + underscore only
+    - No spaces or special characters
+    
+    Args:
+        name: Proposed drive name string
+        
+    Returns:
+        Valid drive name (sanitized) or "MIDICAPTAIN" if invalid
+    """
+    if not name or not isinstance(name, str):
+        return "MIDICAPTAIN"
+    
+    # Convert to uppercase and strip whitespace
+    name = name.upper().strip()
+    
+    # Filter to valid characters (alphanumeric + underscore).
+    # Avoid str.isalnum() — not available in CircuitPython 7.x.
+    # name is already uppercased, so only A-Z, 0-9, and _ are valid.
+    name = "".join(c for c in name if ('A' <= c <= 'Z') or ('0' <= c <= '9') or c == '_')
+    
+    # Truncate to 11 characters
+    if len(name) > 11:
+        name = name[:11]
+    
+    # Must have at least 1 character
+    if len(name) == 0:
+        return "MIDICAPTAIN"
+    
+    return name
+
+
+def get_usb_drive_name(cfg):
+    """Extract and validate USB drive name from config.
+    
+    Args:
+        cfg: Full config dict
+        
+    Returns:
+        Validated USB drive name string
+    """
+    name = cfg.get("usb_drive_name", "MIDICAPTAIN")
+    return validate_usb_drive_name(name)
