@@ -65,7 +65,23 @@ When you run `./emulator/test.sh`, the firmware:
 - **Automation scenarios are alpha** — button press simulation via YAML works but isn't battle-tested
 - **Requires `WOKWI_CLI_TOKEN`** — needs a secret for CI
 
-### Two Commits on `wokwi-emulator-spike`
+### Important: Not a Local Emulator
+
+`wokwi-cli` is **not** a local emulator — it connects to Wokwi's cloud to run the simulation. Every run consumes CI minutes from your Wokwi plan. The test script has a 30s timeout, so a single run costs ~0.5 minutes, giving roughly **100 test runs/month** on the free tier. Fine for manual testing and occasional CI, tight for per-push CI on an active branch.
+
+### Next Steps
+
+1. **Merge the spike to main** — The approach is proven and working.
+
+2. **Add a GitHub Actions workflow** — A CI workflow that runs `setup.sh` to build the UF2, then `test.sh` via `wokwi-cli` with a `WOKWI_CLI_TOKEN` secret. Validates firmware boots and initializes correctly on each push/PR.
+
+3. **Build a test framework for action-outcome testing** — The current boot test is a sanity check ("did we brick it?"). Real testing requires:
+   - A way to define test scenarios: input actions (button presses, encoder turns, expression pedal values) mapped to expected outcomes (MIDI messages sent, display text, LED colors)
+   - Easy maintenance: adding a new button config shouldn't require rewriting test infrastructure
+   - The Wokwi automation YAML (`test-boot.yaml`) is a starting point but limited and alpha-stage
+   - **Open question:** Does Wokwi's serial output give enough observability to assert on MIDI output? Or do we need a test harness in the firmware itself (e.g., a test mode that logs actions to serial in a parseable format)?
+
+### Commits on `wokwi-emulator-spike`
 
 1. `2ca619f` — Initial scaffolding (diagram, scripts, configs)
 2. `c44c350` — Working emulator with `build-uf2.py` and all fixes
