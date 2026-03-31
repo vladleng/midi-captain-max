@@ -132,11 +132,34 @@ jobs:
 
       - name: Generate Release Notes Body
         id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # Generate the "What's Changed" changelog via the API so we control placement
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          CHANGELOG=""
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(gh api repos/${{ github.repository }}/releases/generate-notes \
+              -f tag_name="$VERSION" \
+              -f previous_tag_name="$PREV_TAG" \
+              --jq '.body' 2>/dev/null || echo "")
+          fi
+
+          # Build final body: header + changelog + installation instructions
           envsubst < tools/release_notes.md > release_notes_processed.txt
-          echo "BODY<<EOF" >> $GITHUB_OUTPUT
-          cat release_notes_processed.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            echo "BODY<<RELEASE_BODY_EOF"
+            head -1 release_notes_processed.txt
+            echo ""
+            if [ -n "$CHANGELOG" ]; then
+              echo "$CHANGELOG"
+              echo ""
+            fi
+            # Append everything after the first line (installation instructions)
+            tail -n +2 release_notes_processed.txt
+            echo ""
+            echo "RELEASE_BODY_EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         id: create_release
@@ -144,7 +167,6 @@ jobs:
         with:
           prerelease:  ${{ steps.header.outputs.PRERELEASE }}
           make_latest: ${{ steps.header.outputs.PRERELEASE != 'true' }}
-          generate_release_notes: true
           files: dist/*
           body: ${{ steps.notes.outputs.BODY }}
         env:
