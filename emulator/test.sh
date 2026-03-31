@@ -7,14 +7,30 @@
 #   2. Set WOKWI_CLI_TOKEN env var (get from https://wokwi.com/dashboard/ci)
 #
 # Usage: ./emulator/test.sh
+#
+# Exit codes:
+#   0  = passed (boot banner found)
+#   1  = failed (Python error detected)
+#   42 = timeout (firmware didn't print expected text within 30s)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="$SCRIPT_DIR/test.log"
+WOKWI_CLI="${WOKWI_CLI:-wokwi-cli}"
 
-if [ ! -f "$SCRIPT_DIR/code.py" ]; then
-  echo "Error: code.py not found. Run ./emulator/setup.sh first."
+# Find wokwi-cli
+if ! command -v "$WOKWI_CLI" &> /dev/null; then
+  if [ -x "$HOME/.wokwi/bin/wokwi-cli" ]; then
+    WOKWI_CLI="$HOME/.wokwi/bin/wokwi-cli"
+  else
+    echo "Error: wokwi-cli not found. Install: curl -L https://wokwi.com/ci/install.sh | sh"
+    exit 1
+  fi
+fi
+
+if [ ! -f "$SCRIPT_DIR/firmware-bundle.uf2" ]; then
+  echo "Error: firmware-bundle.uf2 not found. Run ./emulator/setup.sh first."
   exit 1
 fi
 
@@ -27,9 +43,9 @@ fi
 echo "Running emulator tests..."
 echo ""
 
-# Run with 30s timeout, expect the boot banner, fail on Python errors
+# Run with 30s timeout
 # Exit code: 0 = expect-text found, 1 = fail-text found, 42 = timeout
-wokwi-cli \
+"$WOKWI_CLI" \
   --timeout 30000 \
   --expect-text "MIDI CAPTAIN" \
   --fail-text "Traceback" \
