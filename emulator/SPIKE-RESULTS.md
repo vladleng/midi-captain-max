@@ -69,6 +69,38 @@ When you run `./emulator/test.sh`, the firmware:
 
 `wokwi-cli` is **not** a local emulator — it connects to Wokwi's cloud to run the simulation. Every run consumes CI minutes from your Wokwi plan. The test script has a 30s timeout, so a single run costs ~0.5 minutes, giving roughly **100 test runs/month** on the free tier. Fine for manual testing and occasional CI, tight for per-push CI on an active branch.
 
+### Should UF2 Bundle Be the End-User Delivery Method?
+
+**No.** The UF2 bundle is a workaround for Wokwi's inability to inject files — it should stay emulator-only.
+
+#### Why the gap between emulator and user delivery is narrow
+
+CircuitPython reads `.py` files from a FAT filesystem regardless of how they got there. The emulator runs the **exact same source files** — same `code.py`, `core/`, `devices/`, etc. The only difference is how they land on the filesystem (baked into UF2 vs copied by `deploy.sh`). To keep this tight, the CI emulator build should pull from the same source tree that `deploy.sh` copies.
+
+#### Why UF2 delivery would hurt end users
+
+- **Kills the config editor.** The Tauri app reads/writes `config.json` directly on the mounted drive. UF2 delivery means no mounted drive, no direct file access.
+- **Kills easy config editing.** Users can currently open `config.json` in any text editor.
+- **Requires BOOTSEL for every update.** Users must hold a button and power-cycle instead of running `deploy.sh`.
+- **Loses incremental updates.** Changing one button mapping means rebuilding and reflashing the entire UF2.
+- **Loses CircuitPython's biggest advantage** — the accessible, editable filesystem.
+
+#### What about the BOOTSEL + config-mode pattern?
+
+Some Pico devices (running compiled C/C++ firmware) use BOOTSEL to flash a UF2 and a special keypress to enter a config-only mode that mounts a drive with just a config file. This solves a problem we don't have — we *want* the drive mounted because it's how the config editor and deploy scripts work. That pattern makes sense for compiled firmware where there's nothing useful for users to see. Ours has user-editable config and visible source files.
+
+#### Comparison
+
+| | Compiled C/C++ firmware | CircuitPython (our approach) |
+|---|---|---|
+| **Code format** | Compiled binary in UF2 | `.py` source files on FAT filesystem |
+| **Install method** | BOOTSEL → copy UF2 | Mount drive → copy files |
+| **Config** | Separate mechanism needed | Edit `config.json` on the drive |
+| **Update** | Replace entire UF2 | Replace changed files only |
+| **User access to code** | None (binary) | Full (source files visible) |
+
+**Recommendation:** Keep file-copy delivery for users, UF2 bundle for emulator only. Address "test what you ship" by ensuring the CI build uses the same source tree as `deploy.sh`.
+
 ### Next Steps
 
 1. **Merge the spike to main** — The approach is proven and working.
