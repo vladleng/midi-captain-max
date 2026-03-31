@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+# CircuitPython firmware is specified via diagram.json "env" attr, not here.
+# Project files (code.py, config.json, lib/) are loaded from the firmware directory.

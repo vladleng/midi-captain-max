@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "author": "MIDI Captain MAX",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-pi-pico",
+      "id": "pico",
+      "top": 0,
+      "left": 0,
+      "attrs": { "env": "circuitpython-7.3.3" }
+    },
+    { "type": "wokwi-pushbutton", "id": "btn_enc", "top": -80, "left": -40, "attrs": { "label": "ENC" } },
+    { "type": "wokwi-pushbutton", "id": "btn1", "top": -80, "left": 20, "attrs": { "label": "1" } },
+    { "type": "wokwi-pushbutton", "id": "btn2", "top": -80, "left": 80, "attrs": { "label": "2" } },
+    { "type": "wokwi-pushbutton", "id": "btn3", "top": -80, "left": 140, "attrs": { "label": "3" } },
+    { "type": "wokwi-pushbutton", "id": "btn4", "top": -80, "left": 200, "attrs": { "label": "4" } },
+    { "type": "wokwi-pushbutton", "id": "btn5", "top": -80, "left": 260, "attrs": { "label": "DN" } },
+    { "type": "wokwi-pushbutton", "id": "btn6", "top": 200, "left": -40, "attrs": { "label": "A" } },
+    { "type": "wokwi-pushbutton", "id": "btn7", "top": 200, "left": 20, "attrs": { "label": "B" } },
+    { "type": "wokwi-pushbutton", "id": "btn8", "top": 200, "left": 80, "attrs": { "label": "C" } },
+    { "type": "wokwi-pushbutton", "id": "btn9", "top": 200, "left": 140, "attrs": { "label": "D" } },
+    { "type": "wokwi-pushbutton", "id": "btn10", "top": 200, "left": 200, "attrs": { "label": "UP" } },
+    {
+      "type": "wokwi-neopixel-ring",
+      "id": "neopixels",
+      "top": 80,
+      "left": 300,
+      "attrs": { "pixels": "30" }
+    }
+  ],
+  "connections": [
+    ["pico:GP0", "btn_enc:1.l", "gray", []],
+    ["pico:GND.1", "btn_enc:2.l", "black", []],
+    ["pico:GP1", "btn1:1.l", "green", []],
+    ["pico:GND.1", "btn1:2.l", "black", []],
+    ["pico:GP25", "btn2:1.l", "green", []],
+    ["pico:GND.1", "btn2:2.l", "black", []],
+    ["pico:GP24", "btn3:1.l", "green", []],
+    ["pico:GND.1", "btn3:2.l", "black", []],
+    ["pico:GP23", "btn4:1.l", "green", []],
+    ["pico:GND.1", "btn4:2.l", "black", []],
+    ["pico:GP20", "btn5:1.l", "green", []],
+    ["pico:GND.1", "btn5:2.l", "black", []],
+    ["pico:GP9", "btn6:1.l", "blue", []],
+    ["pico:GND.1", "btn6:2.l", "black", []],
+    ["pico:GP10", "btn7:1.l", "blue", []],
+    ["pico:GND.1", "btn7:2.l", "black", []],
+    ["pico:GP11", "btn8:1.l", "blue", []],
+    ["pico:GND.1", "btn8:2.l", "black", []],
+    ["pico:GP18", "btn9:1.l", "blue", []],
+    ["pico:GND.1", "btn9:2.l", "black", []],
+    ["pico:GP19", "btn10:1.l", "blue", []],
+    ["pico:GND.1", "btn10:2.l", "black", []],
+    ["pico:GP7", "neopixels:DIN", "orange", []],
+    ["pico:GND.1", "neopixels:GND", "black", []],
+    ["pico:VBUS", "neopixels:VCC", "red", []]
+  ],
+  "serialMonitor": { "display": "auto" }
+}

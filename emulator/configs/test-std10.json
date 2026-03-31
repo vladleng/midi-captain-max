@@ -1,0 +1,57 @@
+{
+  "device": "std10",
+  "usb_drive_name": "MIDICAPTAIN",
+  "dev_mode": true,
+  "display": {
+    "button_text_size": "medium",
+    "status_text_size": "medium",
+    "expression_text_size": "medium"
+  },
+  "buttons": [
+    {"label": "BTN1", "cc": 20, "color": "red"},
+    {"label": "BTN2", "cc": 21, "color": "green"},
+    {"label": "BTN3", "cc": 22, "color": "blue"},
+    {"label": "BTN4", "cc": 23, "color": "yellow"},
+    {"label": "BTN5", "cc": 24, "color": "cyan"},
+    {"label": "BTN6", "cc": 25, "color": "magenta"},
+    {"label": "BTN7", "cc": 26, "color": "orange"},
+    {"label": "BTN8", "cc": 27, "color": "purple"},
+    {"label": "BTN9", "cc": 28, "color": "white"},
+    {"label": "BTN10", "cc": 29, "color": "red"}
+  ],
+  "encoder": {
+    "enabled": true,
+    "cc": 11,
+    "label": "ENC",
+    "min": 0,
+    "max": 127,
+    "initial": 64,
+    "steps": null,
+    "push": {
+      "enabled": true,
+      "cc": 14,
+      "label": "PUSH",
+      "mode": "momentary"
+    }
+  },
+  "expression": {
+    "exp1": {
+      "enabled": true,
+      "cc": 12,
+      "label": "EXP1",
+      "min": 0,
+      "max": 127,
+      "polarity": "normal",
+      "threshold": 2
+    },
+    "exp2": {
+      "enabled": true,
+      "cc": 13,
+      "label": "EXP2",
+      "min": 0,
+      "max": 127,
+      "polarity": "normal",
+      "threshold": 2
+    }
+  }
+}
