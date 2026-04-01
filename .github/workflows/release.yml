@@ -6,8 +6,35 @@ on:
       - "v*"
 
 jobs:
+  smoke-test:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install pyfatfs
+
+      - name: Install wokwi-cli
+        run: curl -L https://wokwi.com/ci/install.sh | sh
+
+      - name: Build firmware bundle
+        run: ./emulator/setup.sh
+
+      - name: Run emulator smoke test
+        env:
+          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+        run: ./emulator/test.sh
+
   release:
     name: Create Release
+    needs: smoke-test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
