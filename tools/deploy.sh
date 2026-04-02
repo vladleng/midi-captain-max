@@ -152,7 +152,7 @@ echo ""
 if [ ! -d "$MOUNT_POINT" ]; then
     # Build candidate list: well-known defaults + usb_drive_name from local config files
     CANDIDATE_NAMES=("CIRCUITPY" "MIDICAPTAIN")
-    for cfg_file in "$DEV_DIR/config.json" "$DEV_DIR/config-mini6.json" "$DEV_DIR/config-nano4.json"; do
+    for cfg_file in "$DEV_DIR/config.json" "$DEV_DIR/config-duo2.json" "$DEV_DIR/config-mini6.json" "$DEV_DIR/config-nano4.json"; do
         if [ -f "$cfg_file" ]; then
             # Parse usb_drive_name: use jq if available, fall back to grep/sed
             if command -v jq &>/dev/null; then

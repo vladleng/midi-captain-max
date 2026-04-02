@@ -339,7 +339,7 @@ Flipping a DIP switch changes its pin from LOW → HIGH.
 - Common UART display protocols (TM1637, HT1621, MAX7219) do NOT work — this is a proprietary UART protocol.
 - The protocol was discovered by importing the OEM module in the REPL, interrupting with Ctrl+C, and inspecting `midicaptain2s.uart`, `midicaptain2s.display_buf`, and `midicaptain2s.digits_hex`.
 
-**Firmware status:** `HAS_DISPLAY = False` in `code.py`. UART display support is not yet integrated into the main firmware — display protocol is documented here for future implementation.
+**Firmware status:** Integrated. `HAS_SEG_DISPLAY = True` (derived from `SEG_DISPLAY_TX_PIN`) enables the UART display via the `update_status()` abstraction, which extracts the last number from status text and sends it to the 3-digit LCD.
 
 ### GPIO Summary
 

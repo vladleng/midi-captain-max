@@ -79,7 +79,7 @@ FONT_SIZE_MAP = {
 def _read_device_from_config():
     """Quick config.json read for just the device field.
 
-    Returns "mini6", "std10", or None if not found/invalid.
+    Returns "duo2", "nano4", "mini6", "std10", or None if not found/invalid.
     """
     try:
         with open("/config.json", "r") as f:
