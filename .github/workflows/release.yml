@@ -140,6 +140,22 @@ jobs:
           
           ls -la dist/
 
+      - name: Create combined bundle (firmware + all GUI installers)
+        run: |
+          mkdir -p bundle
+          # Copy firmware zip contents (extract so bundle is flat, not a zip-in-zip)
+          cp "dist/midicaptain-firmware-${VERSION}.zip" bundle/
+          # Copy all GUI installers that were found
+          for ext in dmg msi exe; do
+            for f in dist/*."$ext"; do
+              [ -f "$f" ] && cp "$f" bundle/
+            done
+          done
+          # Create the combined zip
+          (cd bundle && zip -r "../dist/MIDI-Captain-MAX-${VERSION}-complete.zip" .)
+          echo "✓ Complete bundle: MIDI-Captain-MAX-${VERSION}-complete.zip" >> $GITHUB_STEP_SUMMARY
+          ls -la dist/
+
       - name: Generate Release Note Header
         id: header
         run: |

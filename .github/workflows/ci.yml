@@ -174,8 +174,7 @@ jobs:
             INSTALL.md \
             code.py \
             boot.py \
-            config.json \
-            config-mini6.json \
+            config*.json \
             core/ \
             devices/ \
             fonts/ \

@@ -298,6 +298,8 @@ Both distribution paths must include the same set of files and write the `VERSIO
 1. `tools/deploy.sh` — dev deploy via rsync (also writes `VERSION` to device and local `firmware/dev/`)
 2. `.github/workflows/ci.yml` — firmware zip (`build-zip` job, writes `VERSION` from lint job output)
 
+Device config files (`config*.json`) are included dynamically via glob in both paths, so adding a new device config does not require editing either file.
+
 ```bash
 ./tools/deploy.sh                   # Quick deploy (sync firmware, preserve config)
 ./tools/deploy.sh --device nano4    # First-time setup (config + libs + firmware)
