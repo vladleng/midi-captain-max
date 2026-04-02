@@ -1,16 +1,19 @@
 <script lang="ts">
   import Accordion from './Accordion.svelte';
-  import { config, updateField } from '$lib/formStore';
-  
+  import { config, updateField, DEVICE_HAS_TFT } from '$lib/formStore';
+
+  let deviceType = $derived($config.device);
   let display = $derived($config.display);
-  
+  let isDisabled = $derived(!DEVICE_HAS_TFT[deviceType ?? 'std10']);
+  let message = $derived(isDisabled ? `Not available on ${(deviceType ?? '').toUpperCase()}` : undefined);
+
   function handleField(path: string, e: Event) {
     const target = e.target as HTMLSelectElement;
     updateField(`display.${path}`, target.value);
   }
 </script>
 
-<Accordion title="Display Settings">
+<Accordion title="Display Settings" defaultOpen={!isDisabled} disabled={isDisabled} {message}>
   <div class="display-section">
     <div class="field-row">
       <label>Button text size:</label>

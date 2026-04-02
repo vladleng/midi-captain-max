@@ -1,16 +1,19 @@
 <script lang="ts">
   import Accordion from './Accordion.svelte';
   import ExpressionPedal from './ExpressionPedal.svelte';
-  import { config, updateField } from '$lib/formStore';
-  
+  import { config, updateField, DEVICE_HAS_EXPRESSION } from '$lib/formStore';
+
+  let deviceType = $derived($config.device);
   let expression = $derived($config.expression);
-  
+  let isDisabled = $derived(!DEVICE_HAS_EXPRESSION[deviceType ?? 'std10']);
+  let message = $derived(isDisabled ? `Not available on ${(deviceType ?? '').toUpperCase()}` : undefined);
+
   function handlePedalUpdate(pedal: 'exp1' | 'exp2', field: string, value: any) {
     updateField(`expression.${pedal}.${field}`, value);
   }
 </script>
 
-<Accordion title="Expression Pedals">
+<Accordion title="Expression Pedals" defaultOpen={!isDisabled} disabled={isDisabled} {message}>
   {#if expression}
     <div class="pedals-list">
       <ExpressionPedal 

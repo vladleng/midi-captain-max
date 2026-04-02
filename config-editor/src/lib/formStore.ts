@@ -254,6 +254,22 @@ const DEVICE_HAS_ENCODER: Record<DeviceType, boolean> = {
   std10: true,
 };
 
+// Whether a device supports expression pedals
+export const DEVICE_HAS_EXPRESSION: Record<DeviceType, boolean> = {
+  duo2: false,
+  nano4: false,
+  mini6: false,
+  std10: true,
+};
+
+// Whether a device has a TFT display (for display settings)
+export const DEVICE_HAS_TFT: Record<DeviceType, boolean> = {
+  duo2: false,
+  nano4: true,
+  mini6: true,
+  std10: true,
+};
+
 export function setDevice(deviceType: DeviceType) {
   formState.update(state => {
     const newState = { ...state };
