@@ -4,10 +4,6 @@
 
 **Bidirectional, config-driven CircuitPython firmware for Paint Audio MIDI Captain foot controllers.**
 
-Includes a **GUI Config Editor**!
-
-<img width="1312" height="912" alt="MCM-config-editor" src="https://github.com/user-attachments/assets/5e4c0b73-074b-4895-8861-d95aea7f1426" />
-
 ## What It Does
 
 This firmware transforms your MIDI Captain into a **bidirectional MIDI controller** where your host software (DAW, plugin host) can control the device's LEDs and display, not just receive button presses.
@@ -15,28 +11,84 @@ This firmware transforms your MIDI Captain into a **bidirectional MIDI controlle
 Momentary and toggle modes are currently supported. Many more issues are coming! [See here for all open features and issues](https://github.com/MC-Music-Workshop/midi-captain-max/issues).
 
 ## Key Features
-- 🔄 **Bidirectional MIDI** — Host can update LEDs/display state
-- ⚙️ **Config-driven** — Customize button labels, CC numbers, colors with the GUI Config Editor.
-- 🎨 **Visual feedback** — LEDs and LCD reflect actual host state
-- 🎛️ **Full input support** — Footswitches, rotary encoder, expression pedals
-- 🔁 **Keytimes** — Multi-press cycling through states (like OEM SuperMode)
+- 🔄 **Bidirectional MIDI** — Host can update LEDs/display state on MCM
+- ⚙️ **Config-driven** — Customize button labels, CC numbers, and colors with the GUI Config Editor
+- 🔄 **Dev Mode** - Quickly test config changes without rebooting
+- 💾 **Custom Drive Names** - Useful when managing multiple Captains
 - 🎸 **Stage-ready** — No unexpected resets, no crashes, no surprises
+
+### Includes a **GUI Config Editor**!
+
+<img width="1312" height="912" alt="MCM-config-editor" src="https://github.com/user-attachments/assets/5e4c0b73-074b-4895-8861-d95aea7f1426" />
+
 
 ## Supported Devices
 
 | Device | Status |
 |--------|--------|
-| MIDI Captain STD10 (10-switch) | ✅ Fully working |
-| MIDI Captain Mini6 (6-switch) | ✅ Fully working |
-| 4, 2, 1-button variations | ❔ need hardware |
+| MIDI Captain STD10 | ✅ |
+| MIDI Captain Mini6 | ✅  |
+| MIDI Captain NANO4 | ✅  |
+| ONE, DUO | pending |
 
 # Installation
 
-1. [Download the latest firmware.zip and appropriate GUI Config Editor](https://github.com/MC-Music-Workshop/midi-captain-max/releases/latest)
-3. Connect your MIDI Captain via USB (hold Button 1 while powering on)
-4. Copy all files and folders from the zip to the device drive (CIRCUITPY or MIDICAPTAIN)
-5. On mini6, rename `config-mini6.json` to `config.json`, overwriting the existing one.
-6. Power off/on or unplug and replug USB to restart
+:warning: Before doing any of this, if you haven't already, please back up your existing config and firmware in a safe place for recovery or to revert to OEM firmware.
+
+## GUI Config Editor
+
+Download the appropriate **MIDI-Captain-MAX-Config-Editor.*** installer file from the `Assets` section below.
+
+## Firmware
+
+1. Download the firmware zip: midi-captain-max-latest.zip.
+1. Extract the zip.
+1. Connect your MIDI Captain via USB. Power it on normally.
+    1. The device will mount as `CIRCUITPY` or `MIDICAPTAIN`.
+    1. If the drive mounts as read-only, hold switch 1 (top-left footswitch) while plugging in USB to enable write access.
+  
+
+### macOS / Linux — deploy script (recommended)
+
+Run the included `deploy.sh` script from the extracted zip folder:
+
+# Quick update (preserves your existing config.json)
+./deploy.sh
+
+# First-time install — also installs required CircuitPython libraries
+./deploy.sh --install
+
+# Deploy and eject for a clean reload
+./deploy.sh --eject
+
+# Overwrite config.json with the default (resets your button mappings)
+./deploy.sh --fresh
+The script auto-detects your device type (STD10 or Mini6) and preserves your config.json unless you pass --fresh.
+
+Windows — deploy script (recommended)
+Run the included deploy.ps1 script from the extracted zip folder in PowerShell:
+
+# Quick update (preserves your existing config.json)
+.\deploy.ps1
+
+# First-time install — also installs required CircuitPython libraries
+.\deploy.ps1 -Install
+
+# Deploy and eject for a clean reload
+.\deploy.ps1 -Eject
+
+# Overwrite config.json with the default (resets your button mappings)
+.\deploy.ps1 -Fresh
+
+# Specify a drive letter manually
+.\deploy.ps1 -MountPoint E:\
+The script auto-detects your device type (STD10 or Mini6) and preserves your config.json unless you pass -Fresh.
+
+Manual install (any platform)
+Open the extracted zip folder.
+Copy all files and folders to the device drive (CIRCUITPY or MIDICAPTAIN), replacing existing files.
+If you have a custom config.json with your own button mappings, keep your existing one.
+First-time install on Mini6: delete config.json on the device and rename config-mini6.json to config.json.
 
 ## Configuration
 
