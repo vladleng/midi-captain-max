@@ -299,10 +299,12 @@ Both distribution paths must include the same set of files and write the `VERSIO
 2. `.github/workflows/ci.yml` — firmware zip (`build-zip` job, writes `VERSION` from lint job output)
 
 ```bash
-./tools/deploy.sh                   # Quick deploy (auto-detects mount point)
-./tools/deploy.sh --install          # Full install with CircuitPython libraries
-./tools/deploy.sh --eject            # Deploy + eject (forces clean reload)
-./tools/deploy.sh /Volumes/MIDICAPT  # Custom mount point
+./tools/deploy.sh                   # Quick deploy (sync firmware, preserve config)
+./tools/deploy.sh --device nano4    # First-time setup (config + libs + firmware)
+./tools/deploy.sh --reset-config    # Reset config.json to template defaults
+./tools/deploy.sh --install         # Re-check/install CircuitPython libraries
+./tools/deploy.sh --eject           # Deploy + eject (forces clean reload)
+./tools/deploy.sh /Volumes/MIDICAPT # Custom mount point
 ```
 
 ### Desktop Testing (Unit)
