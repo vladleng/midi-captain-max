@@ -95,7 +95,14 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
   const errors = new Map<string, string>();
   
   // Device-specific validation
-  if (config.device === 'nano4') {
+  if (config.device === 'duo2') {
+    if (config.buttons.length > 2) {
+      errors.set('device', 'DUO2 supports only 2 buttons');
+    }
+    if (config.encoder?.enabled) {
+      errors.set('encoder.enabled', 'DUO2 does not support encoder');
+    }
+  } else if (config.device === 'nano4') {
     if (config.buttons.length > 4) {
       errors.set('device', 'NANO4 supports only 4 buttons');
     }

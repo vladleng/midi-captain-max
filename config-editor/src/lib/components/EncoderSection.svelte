@@ -5,8 +5,8 @@
   
   let deviceType = $derived($config.device);
   let encoder = $derived($config.encoder);
-  let isDisabled = $derived(deviceType === 'mini6' || deviceType === 'nano4');
-  let message = $derived(isDisabled ? `Disabled on ${deviceType === 'nano4' ? 'NANO4' : 'Mini6'}` : undefined);
+  let isDisabled = $derived(deviceType === 'mini6' || deviceType === 'nano4' || deviceType === 'duo2');
+  let message = $derived(isDisabled ? `Disabled on ${deviceType === 'duo2' ? 'DUO2' : deviceType === 'nano4' ? 'NANO4' : 'Mini6'}` : undefined);
   let globalChannel = $derived($config.global_channel ?? 0);
   
   function handleField(path: string, e: Event) {

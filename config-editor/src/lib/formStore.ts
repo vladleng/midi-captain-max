@@ -240,6 +240,7 @@ function createDefaultButtons(startIndex: number, endIndex: number): ButtonConfi
 
 // Button count per device type
 const DEVICE_BUTTON_COUNT: Record<DeviceType, number> = {
+  duo2: 2,
   nano4: 4,
   mini6: 6,
   std10: 10,
@@ -247,6 +248,7 @@ const DEVICE_BUTTON_COUNT: Record<DeviceType, number> = {
 
 // Whether a device supports encoder
 const DEVICE_HAS_ENCODER: Record<DeviceType, boolean> = {
+  duo2: false,
   nano4: false,
   mini6: false,
   std10: true,

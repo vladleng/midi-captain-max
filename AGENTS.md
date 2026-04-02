@@ -114,7 +114,7 @@ All code in `firmware/original_helmut/` is authored by **Helmut Keller** and mus
 |------|---------|
 | `firmware/original_helmut/` | Helmut Keller's original firmware — **DO NOT MODIFY** |
 | `firmware/dev/` | Active development — refactored code goes here |
-| `firmware/dev/devices/` | Device abstraction modules (std10.py, mini6.py, nano4.py) |
+| `firmware/dev/devices/` | Device abstraction modules (std10.py, mini6.py, nano4.py, duo2.py) |
 | `firmware/dev/experiments/` | Throwaway experiments and proof-of-concepts |
 | `firmware/dev/core/` | Core modules (button.py, config.py, colors.py) |
 | `firmware/dev/fonts/` | PCF display fonts (PTSans variants) |
@@ -260,16 +260,17 @@ For historical context on reverse engineering, see [docs/midicaptain_reverse_eng
 
 ### Device Auto-Detection
 Two-tier detection (config first, then hardware probe):
-1. **Config-based**: reads `"device"` field from `/config.json` (`"nano4"`, `"mini6"`, or `"std10"`)
-2. **Hardware probe fallback**: checks STD10-exclusive switch pins (GP0/GP18/GP19/GP20) — if 3+ read HIGH with pull-ups, it's STD10; otherwise Mini6. Cannot distinguish Mini6 from NANO4 by probe alone.
+1. **Config-based**: reads `"device"` field from `/config.json` (`"duo2"`, `"nano4"`, `"mini6"`, or `"std10"`)
+2. **Hardware probe fallback**: checks STD10-exclusive switch pins (GP0/GP18/GP19/GP20) — if 3+ read HIGH with pull-ups, it's STD10; otherwise Mini6. Cannot distinguish Mini6, NANO4, or DUO2 by probe alone.
 
-**Note**: The old approach (probing `board.LED`/`board.VBUS_SENSE` for Mini6) was broken — GP25 exists on both devices, so everything was detected as Mini6. Always include `"device"` in config.json. This is especially important for NANO4, which shares all its switch pins with Mini6 and cannot be distinguished by hardware probe.
+**Note**: The old approach (probing `board.LED`/`board.VBUS_SENSE` for Mini6) was broken — GP25 exists on both devices, so everything was detected as Mini6. Always include `"device"` in config.json. This is especially important for NANO4 and DUO2, which cannot be distinguished by hardware probe.
 
 ### Device Abstraction
 Device-specific constants live in `firmware/dev/devices/`:
 - `std10.py` — STD10 pin definitions and counts ✅
 - `mini6.py` — Mini6 pin definitions ✅
 - `nano4.py` — NANO4 pin definitions ✅
+- `duo2.py` — DUO2 pin definitions (2 switches, 6 LEDs, no display) ✅
 
 ---
 
@@ -604,7 +605,7 @@ Full button config fields:
 Top-level config fields:
 ```json
 {
-  "device": "std10|mini6|nano4",
+  "device": "std10|mini6|nano4|duo2",
   "global_channel": 0,
   "usb_drive_name": "MIDICAPTAIN",
   "dev_mode": false,
@@ -618,7 +619,7 @@ Top-level config fields:
 **`usb_drive_name`** — label applied to the FAT32 volume when USB is enabled. Defaults to `"MIDICAPTAIN"`. Configurable in the GUI "Device Settings" section. Validation rules (enforced by `validate_usb_drive_name()` in `core/config.py`): max 11 chars, uppercase alphanumeric + underscore only, auto-uppercased, special chars stripped, empty/all-invalid falls back to `"MIDICAPTAIN"`.
 
 Tooling support for custom names:
-- **`deploy.sh`** reads `usb_drive_name` from `config.json`, `config-mini6.json`, and `config-nano4.json` and adds them to the mount-point search. Candidate order: `CIRCUITPY`, `MIDICAPTAIN`, then any `usb_drive_name` values found in local configs. Checked under `/Volumes/`, `/media/$USER/`, `/run/media/$USER/`.
+- **`deploy.sh`** reads `usb_drive_name` from `config.json`, `config-duo2.json`, `config-mini6.json`, and `config-nano4.json` and adds them to the mount-point search. Candidate order: `CIRCUITPY`, `MIDICAPTAIN`, then any `usb_drive_name` values found in local configs. Checked under `/Volumes/`, `/media/$USER/`, `/run/media/$USER/`.
 - **GUI config editor** detects devices by volume name *and* config content. Known names (`CIRCUITPY`, `MIDICAPTAIN`) are always accepted. Custom-named volumes are accepted only when the config.json inside them (a) has `"device": "std10"` or `"mini6"`, and (b) the `usb_drive_name` in that config matches the actual volume name (case-insensitive). This cross-check prevents a stray config.json on an unrelated volume from being treated as a device. The same cross-check applies in `validate_device_path()` (path security gate in `commands.rs`).
 
 **`dev_mode`** — boolean controlling USB drive mount behaviour at boot:
@@ -740,6 +741,7 @@ if enable_usb_drive:
 | `firmware/dev/code.py` | **Active**: Unified firmware with config, display, bidirectional MIDI |
 | `firmware/dev/boot.py` | Disables autoreload; USB drive gated by `dev_mode` config flag or Switch 1 hold; applies custom drive label |
 | `firmware/dev/config.json` | STD10 default config (button labels, CC numbers, colors, drive name, dev_mode) |
+| `firmware/dev/config-duo2.json` | DUO2 template config (copy to device as config.json) |
 | `firmware/dev/config-mini6.json` | Mini6 template config (copy to device as config.json) |
 | `firmware/dev/config-nano4.json` | NANO4 template config (copy to device as config.json) |
 | `firmware/dev/VERSION` | Firmware version (generated, gitignored) |

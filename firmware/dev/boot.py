@@ -50,9 +50,19 @@ except Exception:
     # If config fails to load, use safe defaults (performance mode)
     pass
 
-# Check if user is holding switch 1 (GP1) during boot.
+# Check if user is holding a switch during boot.
+# DUO2 uses GP11 (KEY0) because GP1 is a DIP switch on that device.
+# All other devices use GP1 (switch 1).
 # With pull-up: LOW (False) = pressed, HIGH (True) = not pressed.
-switch_1 = digitalio.DigitalInOut(board.GP1)
+boot_switch_pin = board.GP1
+try:
+    _device = cfg.get("device", "") if cfg else ""
+    if _device == "duo2":
+        boot_switch_pin = board.GP11
+except Exception:
+    pass
+
+switch_1 = digitalio.DigitalInOut(boot_switch_pin)
 switch_1.direction = digitalio.Direction.INPUT
 switch_1.pull = digitalio.Pull.UP
 time.sleep(0.05)  # Allow pull-up to stabilize before reading

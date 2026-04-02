@@ -12,6 +12,8 @@ Features:
 Hardware Variants:
 - STD10: 10 switches, encoder, 2 expression inputs, ST7789 display, 30 NeoPixels
 - Mini6: 6 switches, ST7789 display, 18 NeoPixels
+- NANO4: 4 switches, ST7789 display, 12 NeoPixels
+- DUO2: 2 switches, segmented LCD (no display support), 6 NeoPixels
 
 Author: Max Cascone (based on work by Helmut Keller)
 Date: 2026-01-27
@@ -22,17 +24,12 @@ print("\n=== MIDI CAPTAIN MAX ===\n")
 import board
 import neopixel
 import time
-import displayio
 import digitalio
 import usb_midi
 import busio
 import rotaryio
 import json
 from analogio import AnalogIn
-from adafruit_display_text import label
-from adafruit_bitmap_font import bitmap_font
-import terminalio
-from adafruit_st7789 import ST7789
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
 from adafruit_midi.program_change import ProgramChange
@@ -87,7 +84,7 @@ def _read_device_from_config():
     try:
         with open("/config.json", "r") as f:
             device = json.load(f).get("device")
-            if device in ("nano4", "mini6", "std10"):
+            if device in ("duo2", "nano4", "mini6", "std10"):
                 return device
     except Exception:
         pass
@@ -140,7 +137,16 @@ DETECTED_DEVICE = detect_device_type()
 print(f"Hardware detected: {DETECTED_DEVICE}")
 
 # Now load appropriate device module
-if DETECTED_DEVICE == "nano4":
+if DETECTED_DEVICE == "duo2":
+    from devices.duo2 import (
+        LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
+        ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN
+    )
+    BUTTON_COUNT = 2
+    HAS_ENCODER = False
+    HAS_EXPRESSION = False
+    HAS_DISPLAY = False
+elif DETECTED_DEVICE == "nano4":
     from devices.nano4 import (
         LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
         TFT_DC_PIN, TFT_CS_PIN, TFT_SCK_PIN, TFT_MOSI_PIN,
@@ -150,6 +156,7 @@ if DETECTED_DEVICE == "nano4":
     BUTTON_COUNT = 4
     HAS_ENCODER = False
     HAS_EXPRESSION = False
+    HAS_DISPLAY = True
 elif DETECTED_DEVICE == "mini6":
     from devices.mini6 import (
         LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
@@ -160,6 +167,7 @@ elif DETECTED_DEVICE == "mini6":
     BUTTON_COUNT = 6
     HAS_ENCODER = False
     HAS_EXPRESSION = False
+    HAS_DISPLAY = True
 else:
     # Default to STD10
     from devices.std10 import (
@@ -171,6 +179,7 @@ else:
     BUTTON_COUNT = 10
     HAS_ENCODER = True
     HAS_EXPRESSION = True
+    HAS_DISPLAY = True
 
 DEVICE_TYPE = DETECTED_DEVICE  # For compatibility
 
@@ -240,6 +249,14 @@ print(f"Loaded {len(buttons)} button configs")
 # =============================================================================
 
 
+if HAS_DISPLAY:
+    import displayio
+    from adafruit_display_text import label
+    from adafruit_bitmap_font import bitmap_font
+    import terminalio
+    from adafruit_st7789 import ST7789
+
+
 def load_font(size_name):
     """Load a font based on size name, with fallback to terminalio.
 
@@ -267,18 +284,19 @@ def load_font(size_name):
         return terminalio.FONT, 8
 
 
-# Load display config
-display_config = get_display_config(config)
-button_text_size = display_config["button_text_size"]
-status_text_size = display_config["status_text_size"]
-expression_text_size = display_config["expression_text_size"]
+if HAS_DISPLAY:
+    # Load display config
+    display_config = get_display_config(config)
+    button_text_size = display_config["button_text_size"]
+    status_text_size = display_config["status_text_size"]
+    expression_text_size = display_config["expression_text_size"]
 
-print(f"Display config: button={button_text_size}, status={status_text_size}, expression={expression_text_size}")
+    print(f"Display config: button={button_text_size}, status={status_text_size}, expression={expression_text_size}")
 
-# Load fonts based on config
-BUTTON_FONT, BUTTON_FONT_HEIGHT = load_font(button_text_size)
-STATUS_FONT, STATUS_FONT_HEIGHT = load_font(status_text_size)
-EXPRESSION_FONT, EXPRESSION_FONT_HEIGHT = load_font(expression_text_size)
+    # Load fonts based on config
+    BUTTON_FONT, BUTTON_FONT_HEIGHT = load_font(button_text_size)
+    STATUS_FONT, STATUS_FONT_HEIGHT = load_font(status_text_size)
+    EXPRESSION_FONT, EXPRESSION_FONT_HEIGHT = load_font(expression_text_size)
 
 # =============================================================================
 # Hardware Init
@@ -288,16 +306,17 @@ EXPRESSION_FONT, EXPRESSION_FONT_HEIGHT = load_font(expression_text_size)
 pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, brightness=0.3, auto_write=False)
 
 # Display
-displayio.release_displays()
-spi = busio.SPI(clock=TFT_SCK_PIN, MOSI=TFT_MOSI_PIN)
-display_bus = displayio.FourWire(spi, command=TFT_DC_PIN, chip_select=TFT_CS_PIN)
-display = ST7789(
-    display_bus,
-    width=DISPLAY_WIDTH,
-    height=DISPLAY_HEIGHT,
-    rowstart=DISPLAY_ROWSTART,
-    rotation=DISPLAY_ROTATION,
-)
+if HAS_DISPLAY:
+    displayio.release_displays()
+    spi = busio.SPI(clock=TFT_SCK_PIN, MOSI=TFT_MOSI_PIN)
+    display_bus = displayio.FourWire(spi, command=TFT_DC_PIN, chip_select=TFT_CS_PIN)
+    display = ST7789(
+        display_bus,
+        width=DISPLAY_WIDTH,
+        height=DISPLAY_HEIGHT,
+        rowstart=DISPLAY_ROWSTART,
+        rotation=DISPLAY_ROTATION,
+    )
 
 # =============================================================================
 # Switch Class - imported from core.button
@@ -425,119 +444,120 @@ encoder_slot = -1  # Current slot (set on first change)
 # Display Setup
 # =============================================================================
 
-main_group = displayio.Group()
-
-# Background
-bg_bitmap = displayio.Bitmap(240, 240, 1)
-bg_palette = displayio.Palette(1)
-bg_palette[0] = 0x000000
-bg_sprite = displayio.TileGrid(bg_bitmap, pixel_shader=bg_palette, x=0, y=0)
-main_group.append(bg_sprite)
-
-# Button labels - layout depends on device
 button_labels = []
 button_boxes = []
-
-# Auto-size button height based on font
-button_height = BUTTON_FONT_HEIGHT + 10  # 10px padding
-
-if BUTTON_COUNT == 4:
-    # NANO4: 2 buttons per row, widest spacing
-    button_width = 100
-    button_spacing = 120
-    row_size = 2
-elif BUTTON_COUNT == 6:
-    # Mini6: 3 buttons per row, wider spacing
-    button_width = 70
-    button_spacing = 80
-    row_size = 3
-else:
-    # STD10: 5 buttons per row
-    button_width = 46
-    button_spacing = 48
-    row_size = 5
-
-# Adjust row positions to center vertically based on button height
-top_row_y = 5
-bottom_row_y = 240 - button_height - 5
-
-for i in range(BUTTON_COUNT):
-    btn_config = buttons[i] if i < len(buttons) else {"label": str(i + 1), "color": "white"}
-
-    if i < row_size:
-        x = 1 + i * button_spacing
-        y = top_row_y
-    else:
-        x = 1 + (i - row_size) * button_spacing
-        y = bottom_row_y
-
-    color_rgb = get_color(btn_config.get("color", "white"))
-    off_mode = btn_config.get("off_mode", "dim")  # "dim" or "off"
-    off_color = get_off_color_for_display(color_rgb, off_mode)
-
-    # Create box background with border
-    box_bitmap = displayio.Bitmap(button_width, button_height, 2)
-    box_palette = displayio.Palette(2)
-    box_palette[0] = 0x000000
-    box_palette[1] = rgb_to_hex(off_color)  # Start in off state
-
-    for bx in range(button_width):
-        box_bitmap[bx, 0] = 1
-        box_bitmap[bx, button_height - 1] = 1
-    for by in range(button_height):
-        box_bitmap[0, by] = 1
-        box_bitmap[button_width - 1, by] = 1
-
-    box_sprite = displayio.TileGrid(box_bitmap, pixel_shader=box_palette, x=x, y=y)
-    button_boxes.append((box_sprite, box_palette))
-    main_group.append(box_sprite)
-
-    # Label
-    lbl = label.Label(
-        BUTTON_FONT,
-        text=btn_config.get("label", str(i + 1))[:6],
-        color=rgb_to_hex(off_color),
-        anchor_point=(0.5, 0.5),
-        anchored_position=(x + button_width // 2, y + button_height // 2),
-    )
-    button_labels.append(lbl)
-    main_group.append(lbl)
-
-# Status area (center)
-status_label = label.Label(
-    STATUS_FONT,
-    text="Ready",
-    color=0xFFFFFF,
-    anchor_point=(0.5, 0.5),
-    anchored_position=(120, 120),
-)
-main_group.append(status_label)
-
-# Expression pedal display (below status, only if device has expression)
+status_label = None
 exp1_label = None
 exp2_label = None
-if HAS_EXPRESSION:
-    exp1_lbl_text = exp1_config.get("label", "EXP1")
-    exp1_label = label.Label(
-        EXPRESSION_FONT,
-        text=f"{exp1_lbl_text}: ---",
-        color=0x888888,
-        anchor_point=(0.5, 0.5),
-        anchored_position=(70, 150),
-    )
-    main_group.append(exp1_label)
 
-    exp2_lbl_text = exp2_config.get("label", "EXP2")
-    exp2_label = label.Label(
-        EXPRESSION_FONT,
-        text=f"{exp2_lbl_text}: ---",
-        color=0x888888,
-        anchor_point=(0.5, 0.5),
-        anchored_position=(170, 150),
-    )
-    main_group.append(exp2_label)
+if HAS_DISPLAY:
+    main_group = displayio.Group()
 
-display.show(main_group)
+    # Background
+    bg_bitmap = displayio.Bitmap(240, 240, 1)
+    bg_palette = displayio.Palette(1)
+    bg_palette[0] = 0x000000
+    bg_sprite = displayio.TileGrid(bg_bitmap, pixel_shader=bg_palette, x=0, y=0)
+    main_group.append(bg_sprite)
+
+    # Auto-size button height based on font
+    button_height = BUTTON_FONT_HEIGHT + 10  # 10px padding
+
+    if BUTTON_COUNT == 4:
+        # NANO4: 2 buttons per row, widest spacing
+        button_width = 100
+        button_spacing = 120
+        row_size = 2
+    elif BUTTON_COUNT == 6:
+        # Mini6: 3 buttons per row, wider spacing
+        button_width = 70
+        button_spacing = 80
+        row_size = 3
+    else:
+        # STD10: 5 buttons per row
+        button_width = 46
+        button_spacing = 48
+        row_size = 5
+
+    # Adjust row positions to center vertically based on button height
+    top_row_y = 5
+    bottom_row_y = 240 - button_height - 5
+
+    for i in range(BUTTON_COUNT):
+        btn_config = buttons[i] if i < len(buttons) else {"label": str(i + 1), "color": "white"}
+
+        if i < row_size:
+            x = 1 + i * button_spacing
+            y = top_row_y
+        else:
+            x = 1 + (i - row_size) * button_spacing
+            y = bottom_row_y
+
+        color_rgb = get_color(btn_config.get("color", "white"))
+        off_mode = btn_config.get("off_mode", "dim")  # "dim" or "off"
+        off_color = get_off_color_for_display(color_rgb, off_mode)
+
+        # Create box background with border
+        box_bitmap = displayio.Bitmap(button_width, button_height, 2)
+        box_palette = displayio.Palette(2)
+        box_palette[0] = 0x000000
+        box_palette[1] = rgb_to_hex(off_color)  # Start in off state
+
+        for bx in range(button_width):
+            box_bitmap[bx, 0] = 1
+            box_bitmap[bx, button_height - 1] = 1
+        for by in range(button_height):
+            box_bitmap[0, by] = 1
+            box_bitmap[button_width - 1, by] = 1
+
+        box_sprite = displayio.TileGrid(box_bitmap, pixel_shader=box_palette, x=x, y=y)
+        button_boxes.append((box_sprite, box_palette))
+        main_group.append(box_sprite)
+
+        # Label
+        lbl = label.Label(
+            BUTTON_FONT,
+            text=btn_config.get("label", str(i + 1))[:6],
+            color=rgb_to_hex(off_color),
+            anchor_point=(0.5, 0.5),
+            anchored_position=(x + button_width // 2, y + button_height // 2),
+        )
+        button_labels.append(lbl)
+        main_group.append(lbl)
+
+    # Status area (center)
+    status_label = label.Label(
+        STATUS_FONT,
+        text="Ready",
+        color=0xFFFFFF,
+        anchor_point=(0.5, 0.5),
+        anchored_position=(120, 120),
+    )
+    main_group.append(status_label)
+
+    # Expression pedal display (below status, only if device has expression)
+    if HAS_EXPRESSION:
+        exp1_lbl_text = exp1_config.get("label", "EXP1")
+        exp1_label = label.Label(
+            EXPRESSION_FONT,
+            text=f"{exp1_lbl_text}: ---",
+            color=0x888888,
+            anchor_point=(0.5, 0.5),
+            anchored_position=(70, 150),
+        )
+        main_group.append(exp1_label)
+
+        exp2_lbl_text = exp2_config.get("label", "EXP2")
+        exp2_label = label.Label(
+            EXPRESSION_FONT,
+            text=f"{exp2_lbl_text}: ---",
+            color=0x888888,
+            anchor_point=(0.5, 0.5),
+            anchored_position=(170, 150),
+        )
+        main_group.append(exp2_label)
+
+    display.show(main_group)
 
 # =============================================================================
 # LED & Display Helpers
@@ -584,7 +604,7 @@ def set_button_state(switch_idx, on):
         pixels.show()
 
     # Update display
-    if idx < len(button_labels):
+    if HAS_DISPLAY and idx < len(button_labels):
         color_hex = rgb_to_hex(color_rgb if on else get_off_color_for_display(color_rgb, off_mode))
         button_labels[idx].color = color_hex
         if idx < len(button_boxes):
@@ -643,7 +663,7 @@ def _process_midi_msg(msg, source="USB"):
             if btn_config.get("type", "cc") == "cc" and btn_config.get("cc") == cc and btn_config.get("channel", 0) == msg_channel:
                 new_state = button_states[i].on_midi_receive(val)
                 set_button_state(i + 1, new_state)
-                status_label.text = f"RX CC{cc}={val}"
+                if status_label: status_label.text = f"RX CC{cc}={val}"
                 break
 
     elif isinstance(msg, NoteOn):
@@ -653,7 +673,7 @@ def _process_midi_msg(msg, source="USB"):
         for i, btn_config in enumerate(buttons):
             if btn_config.get("type") == "note" and btn_config.get("note") == note and btn_config.get("channel", 0) == msg_channel:
                 set_button_state(i + 1, vel > 0)
-                status_label.text = f"RX Note{note}"
+                if status_label: status_label.text = f"RX Note{note}"
                 break
 
     elif isinstance(msg, NoteOff):
@@ -662,14 +682,14 @@ def _process_midi_msg(msg, source="USB"):
         for i, btn_config in enumerate(buttons):
             if btn_config.get("type") == "note" and btn_config.get("note") == note and btn_config.get("channel", 0) == msg_channel:
                 set_button_state(i + 1, False)
-                status_label.text = f"RX NoteOff{note}"
+                if status_label: status_label.text = f"RX NoteOff{note}"
                 break
 
     elif isinstance(msg, ProgramChange):
         program = msg.patch
         print(f"[MIDI RX {source}] Ch{msg_channel+1} PC{program}")
         pc_values[msg_channel] = program
-        status_label.text = f"RX PC{program}"
+        if status_label: status_label.text = f"RX PC{program}"
 
 
 def handle_midi():
@@ -729,7 +749,7 @@ def handle_switches():
                     set_button_state(btn_num, pressed)
                     midi_send(ControlChange(cc, val, channel=channel))
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, momentary)")
-                    status_label.text = f"TX CC{cc}={val}"
+                    if status_label: status_label.text = f"TX CC{cc}={val}"
                 elif pressed:
                     # Keytimes cycling always stays on; standard toggle flips on/off
                     new_state = True if btn_state.keytimes > 1 else not btn_state.state
@@ -738,7 +758,7 @@ def handle_switches():
                     val = cc_on if new_state else cc_off
                     midi_send(ControlChange(cc, val, channel=channel))
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, toggle)")
-                    status_label.text = f"TX CC{cc}={'ON' if new_state else 'OFF'}"
+                    if status_label: status_label.text = f"TX CC{cc}={'ON' if new_state else 'OFF'}"
 
             elif message_type == "note":
                 if pressed:
@@ -752,7 +772,7 @@ def handle_switches():
                         midi_send(NoteOn(note, vel_on, channel=channel))
                         set_button_state(btn_num, True)
                         print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel_on} (switch {btn_num})")
-                        status_label.text = f"TX Note{note}"
+                        if status_label: status_label.text = f"TX Note{note}"
                     else:
                         midi_send(NoteOff(note, vel_off, channel=channel))
                         set_button_state(btn_num, False)
@@ -765,11 +785,11 @@ def handle_switches():
                     if new_state:
                         midi_send(NoteOn(note, vel_on, channel=channel))
                         print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel_on} (switch {btn_num}, toggle on)")
-                        status_label.text = f"TX Note{note} ON"
+                        if status_label: status_label.text = f"TX Note{note} ON"
                     else:
                         midi_send(NoteOff(note, vel_off, channel=channel))
                         print(f"[MIDI TX] Ch{channel+1} NoteOff{note} (switch {btn_num}, toggle off)")
-                        status_label.text = f"TX Note{note} OFF"
+                        if status_label: status_label.text = f"TX Note{note} OFF"
 
             elif message_type == "pc" and pressed:
                 btn_state.advance_keytime()
@@ -777,7 +797,7 @@ def handle_switches():
                 program = state_cfg.get("program", 0)
                 midi_send(ProgramChange(program, channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
-                status_label.text = f"TX PC{program}"
+                if status_label: status_label.text = f"TX PC{program}"
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
             elif message_type == "pc_inc" and pressed:
@@ -787,7 +807,7 @@ def handle_switches():
                 pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
                 midi_send(ProgramChange(pc_values[channel], channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, inc)")
-                status_label.text = f"TX PC{pc_values[channel]}"
+                if status_label: status_label.text = f"TX PC{pc_values[channel]}"
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
             elif message_type == "pc_dec" and pressed:
@@ -797,7 +817,7 @@ def handle_switches():
                 pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
                 midi_send(ProgramChange(pc_values[channel], channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, dec)")
-                status_label.text = f"TX PC{pc_values[channel]}"
+                if status_label: status_label.text = f"TX PC{pc_values[channel]}"
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
 
@@ -818,13 +838,13 @@ def handle_encoder_button():
                 cc_val = ENC_PUSH_CC_ON if encoder_push_state else ENC_PUSH_CC_OFF
                 midi_send(ControlChange(CC_ENCODER_PUSH, cc_val, channel=ENC_PUSH_CHANNEL))
                 print(f"[MIDI TX] Ch{ENC_PUSH_CHANNEL+1} CC{CC_ENCODER_PUSH}={cc_val} (encoder push, toggle)")
-                status_label.text = f"TX CC{CC_ENCODER_PUSH}={'ON' if encoder_push_state else 'OFF'}"
+                if status_label: status_label.text = f"TX CC{CC_ENCODER_PUSH}={'ON' if encoder_push_state else 'OFF'}"
         else:
             # Momentary mode: send on press and release
             cc_val = ENC_PUSH_CC_ON if pressed else ENC_PUSH_CC_OFF
             midi_send(ControlChange(CC_ENCODER_PUSH, cc_val, channel=ENC_PUSH_CHANNEL))
             print(f"[MIDI TX] Ch{ENC_PUSH_CHANNEL+1} CC{CC_ENCODER_PUSH}={cc_val} (encoder push, momentary)")
-            status_label.text = f"TX CC{CC_ENCODER_PUSH}={cc_val}"
+            if status_label: status_label.text = f"TX CC{CC_ENCODER_PUSH}={cc_val}"
 
 
 def handle_encoder():
@@ -853,12 +873,12 @@ def handle_encoder():
                 # Output CC is the slot number (0 to steps-1)
                 midi_send(ControlChange(CC_ENCODER, encoder_slot, channel=ENC_CHANNEL))
                 print(f"[ENCODER] Ch{ENC_CHANNEL+1} CC{CC_ENCODER}={encoder_slot} (slot)")
-                status_label.text = f"ENC slot {encoder_slot}"
+                if status_label: status_label.text = f"ENC slot {encoder_slot}"
         else:
             # Normal mode: send every change
             midi_send(ControlChange(CC_ENCODER, encoder_value, channel=ENC_CHANNEL))
             print(f"[ENCODER] Ch{ENC_CHANNEL+1} CC{CC_ENCODER}={encoder_value}")
-            status_label.text = f"ENC={encoder_value}"
+            if status_label: status_label.text = f"ENC={encoder_value}"
 
 
 def handle_expression():

@@ -1,7 +1,7 @@
 # MIDI Captain Hardware Reference
 
-> **Last Updated:** April 1, 2026
-> **Verified On:** STD10, Mini6, and NANO4 hardware with CircuitPython 7.3.1
+> **Last Updated:** April 2, 2026
+> **Verified On:** STD10, Mini6, NANO4, and DUO2 hardware with CircuitPython 7.3.1
 
 This document contains verified hardware specifications for Paint Audio MIDI Captain devices.
 For historical context on how these were discovered, see [midicaptain_reverse_engineering_handoff.md](midicaptain_reverse_engineering_handoff.md).
@@ -15,6 +15,7 @@ The firmware automatically detects which device it's running on by probing hardw
 - **STD10**: Has encoder on GP2/GP3, 11 total switch inputs
 - **Mini6**: Uses unusual pins (board.LED, board.VBUS_SENSE) for switches
 - **NANO4**: 4 switches using a subset of STD10/Mini6 pins (GP1, board.LED, GP9, GP10)
+- **DUO2**: 2 switches (GP11, GP9), 4 DIP switches (GP0-GP3), segmented LCD (no ST7789)
 
 Detection happens before config loading, so the same `code.py` works on all devices.
 
@@ -23,7 +24,7 @@ Detection happens before config loading, so the same `code.py` works on all devi
 - **`config.json`** — User configuration (optional). If present, always used.
 - **Built-in defaults** — If no config.json, firmware uses basic numbered buttons matching detected device's button count.
 
-The `config-mini6.json` and `config-nano4.json` files in the repo are templates/examples for Mini6 and NANO4 users to copy to their device as `config.json`.
+The `config-duo2.json`, `config-mini6.json`, and `config-nano4.json` files in the repo are templates/examples for DUO2, Mini6, and NANO4 users to copy to their device as `config.json`.
 
 ---
 
@@ -235,9 +236,89 @@ Not yet probed, but expected to use the same UART pins as STD10/Mini6 (GP16 TX, 
 
 ---
 
+## DUO2 (2-Switch)
+
+> **Verified:** April 2, 2026 — probed on physical DUO hardware using pin scanner, NeoPixel probe, display scan, and DIP switch probe scripts (`firmware/dev/experiments/duo2_probe.py`, `duo2_led_probe.py`, `duo2_display_scan.py`, `duo2_dip_probe.py`).
+
+### Physical Layout
+
+```
+┌─────────────────────────┐
+│     [Segmented LCD]     │
+├─────────────────────────┤
+│                         │
+│         ┌───┐           │
+│         │K1 │  (top)    │
+│         └───┘           │
+│                         │
+│         ┌───┐           │
+│         │K0 │  (bottom) │
+│         └───┘           │
+│                         │
+│  DIP: [1][2][3][4]      │
+└─────────────────────────┘
+```
+
+### Switch Mapping
+
+| Position | GPIO Pin | Notes |
+|----------|----------|-------|
+| Bottom (KEY0) | GP11 | Also used as boot mode pin on DUO2 |
+| Top (KEY1) | GP9 | — |
+
+**Connector:** USB-C (unlike USB-A on STD10/Mini6/NANO4).
+
+### DIP Switches
+
+4 DIP switches for mode/page selection:
+
+| DIP | GPIO Pin | Default State |
+|-----|----------|---------------|
+| 1 | GP0 | LOW (closed) |
+| 2 | GP1 | LOW (closed) |
+| 3 | GP2 | LOW (closed) |
+| 4 | GP3 | LOW (closed) |
+
+Flipping a DIP switch changes its pin from LOW → HIGH.
+
+### NeoPixels
+
+- **Pin:** GP7 (same as all other devices)
+- **Count:** 6 (3 LEDs per switch × 2 switches)
+- **Chain Order:** KEY0 (bottom) → KEY1 (top)
+- **Per-Switch:** 3 consecutive pixels; KEY0 segments: top → left → right; KEY1 segments: bottom → right → left
+
+### Display
+
+**Not a TFT.** The DUO2 uses a segmented LCD display, not an ST7789 pixel-addressable screen. The OEM firmware (`midicaptain2s.mpy`) drives the segmented LCD via an unknown protocol. Our firmware does **not** support the DUO2 display — `HAS_DISPLAY = False`.
+
+No I2C devices were found on any pin pair (no pull-up resistors present). The display driver is likely embedded in the OEM `.mpy` binary.
+
+### GPIO Summary
+
+| Pin | Function |
+|-----|----------|
+| GP0-GP3 | DIP switches (strongly pulled LOW by default) |
+| GP5 | Driven HIGH (hardware enable, not user-controllable) |
+| GP7 | NeoPixels (6 LEDs) |
+| GP9 | KEY1 (top switch) |
+| GP11 | KEY0 (bottom switch) |
+
+### Serial MIDI
+
+Not yet probed, but expected to use the same UART pins as other devices (GP16 TX, GP17 RX, 31250 baud).
+
+### Not Present
+
+- No rotary encoder
+- No expression pedal inputs
+- No ST7789 display (segmented LCD only, not supported)
+
+---
+
 ## Boot Behavior
 
-All devices use `boot.py` with GP1 as a mode pin:
+All devices use `boot.py` with a boot switch (GP1 on most devices, GP11 on DUO2):
 
 ```python
 # If GP1 is True at boot: disable USB drive, remount RW

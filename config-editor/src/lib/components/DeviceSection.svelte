@@ -46,10 +46,13 @@
         <option value="std10">STD10 (10 buttons)</option>
         <option value="mini6">Mini6 (6 buttons)</option>
         <option value="nano4">NANO4 (4 buttons)</option>
+        <option value="duo2">DUO2 (2 buttons)</option>
       </select>
 
       <p class="help-text">
-        {#if $config.device === 'nano4'}
+        {#if $config.device === 'duo2'}
+          DUO2 supports 2 buttons only. No encoder, expression pedals, or display.
+        {:else if $config.device === 'nano4'}
           NANO4 supports 4 buttons only. Encoder and expression pedals are not available.
         {:else if $config.device === 'mini6'}
           Mini6 supports 6 buttons only. Encoder and expression pedals are not available.

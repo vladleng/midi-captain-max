@@ -26,7 +26,7 @@ pub fn is_midi_captain_config(config_path: &std::path::Path) -> bool {
     }
     let Ok(contents) = std::fs::read_to_string(config_path) else { return false };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else { return false };
-    matches!(value.get("device").and_then(|v| v.as_str()), Some("std10") | Some("mini6") | Some("nano4"))
+    matches!(value.get("device").and_then(|v| v.as_str()), Some("std10") | Some("mini6") | Some("nano4") | Some("duo2"))
 }
 
 /// Parse a config.json and return the explicitly declared `usb_drive_name` if set,
@@ -42,7 +42,7 @@ pub fn parse_midi_captain_config(config_path: &std::path::Path) -> Option<String
     let contents = std::fs::read_to_string(config_path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&contents).ok()?;
     let device = value.get("device").and_then(|v| v.as_str())?;
-    if device != "std10" && device != "mini6" && device != "nano4" {
+    if device != "std10" && device != "mini6" && device != "nano4" && device != "duo2" {
         return None;
     }
     // Return usb_drive_name only if explicitly set — no default fallback
@@ -159,7 +159,7 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
 /// Accepts:
 /// 1. Volumes with a known name (CIRCUITPY, MIDICAPTAIN), or
 /// 2. Volumes whose config.json identifies as a MIDI Captain device
-///    (has `"device": "std10"`, `"mini6"`, or `"nano4"`).
+///    (has `"device": "std10"`, `"mini6"`, `"nano4"`, or `"duo2"`).
 ///    This covers user-renamed drives (e.g. renamed in Finder) where the
 ///    volume name no longer matches the default "MIDICAPTAIN".
 fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {

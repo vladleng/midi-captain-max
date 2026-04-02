@@ -74,7 +74,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Valid device types
-VALID_DEVICES="nano4 mini6 std10"
+VALID_DEVICES="duo2 nano4 mini6 std10"
 
 # Parse arguments
 ARGS=("$@")
@@ -285,7 +285,9 @@ echo "🎛️  Device type: $DEVICE_TYPE"
 echo ""
 
 # Select appropriate config file
-if [ "$DEVICE_TYPE" = "nano4" ]; then
+if [ "$DEVICE_TYPE" = "duo2" ]; then
+    CONFIG_FILE="$DEV_DIR/config-duo2.json"
+elif [ "$DEVICE_TYPE" = "nano4" ]; then
     CONFIG_FILE="$DEV_DIR/config-nano4.json"
 elif [ "$DEVICE_TYPE" = "mini6" ]; then
     CONFIG_FILE="$DEV_DIR/config-mini6.json"
@@ -408,6 +410,8 @@ if [ "$WRITE_CONFIG" = true ]; then
 fi
 
 # 4. Deploy device-specific fallback configs (reference only)
+rsync -av --checksum --inplace --itemize-changes \
+    "$DEV_DIR/config-duo2.json" "$MOUNT_POINT/config-duo2.json"
 rsync -av --checksum --inplace --itemize-changes \
     "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json"
 rsync -av --checksum --inplace --itemize-changes \
