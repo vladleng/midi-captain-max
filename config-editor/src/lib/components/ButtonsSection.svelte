@@ -2,11 +2,18 @@
   import Accordion from './Accordion.svelte';
   import ButtonRow from './ButtonRow.svelte';
   import { config, updateField } from '$lib/formStore';
-  
+  import type { DeviceType } from '$lib/types';
+
+  // Device-specific button names (default: "Button 1", "Button 2", etc.)
+  const DEVICE_BUTTON_NAMES: Partial<Record<DeviceType, string[]>> = {
+    duo2: ['KEY0', 'KEY1'],
+  };
+
   let deviceType = $derived($config.device);
   let buttons = $derived($config.buttons);
   let globalChannel = $derived($config.global_channel ?? 0);
   let visibleCount = $derived(buttons.length);
+  let buttonNames = $derived(DEVICE_BUTTON_NAMES[deviceType ?? 'std10']);
   
   function handleButtonUpdate(index: number, field: string, value: any) {
     updateField(`buttons[${index}].${field}`, value);
@@ -17,9 +24,10 @@
   <div class="buttons-list">
     {#each buttons as button, index}
       {@const isDisabled = (deviceType === 'duo2' && index >= 2) || (deviceType === 'nano4' && index >= 4) || (deviceType === 'mini6' && index >= 6)}
-      <ButtonRow 
+      <ButtonRow
         {button}
         {index}
+        displayName={buttonNames?.[index]}
         disabled={isDisabled}
         globalChannel={globalChannel}
         onUpdate={(field, value) => handleButtonUpdate(index, field, value)}

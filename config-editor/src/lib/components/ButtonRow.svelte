@@ -6,12 +6,13 @@
   interface Props {
     button: ButtonConfig;
     index: number;
+    displayName?: string;
     disabled?: boolean;
     globalChannel?: number;
     onUpdate: (field: string, value: any) => void;
   }
 
-  let { button, index, disabled = false, globalChannel = 0, onUpdate }: Props = $props();
+  let { button, index, displayName, disabled = false, globalChannel = 0, onUpdate }: Props = $props();
 
   const basePath = `buttons[${index}]`;
 
@@ -161,7 +162,7 @@
 </script>
 
 <div class="button-row" class:disabled>
-  <span class="button-num">Button {index + 1}:</span>
+  <span class="button-num">{displayName ?? `Button ${index + 1}`}:</span>
 
   <div class="field">
     <input
