@@ -31,7 +31,7 @@ This repository creates **custom CircuitPython firmware** for Paint Audio MIDI C
 ### Primary Goals
 - **Bidirectional MIDI sync** — host controls LEDs/LCD state, device sends switch/encoder events
 - **Config-driven mapping** — JSON configuration for MIDI assignments and UI layouts
-- **Multi-device support** — STD10 (10-switch) and Mini6 (6-switch) primary targets
+- **Multi-device support** — STD10 (10-switch), Mini6 (6-switch), and NANO4 (4-switch) targets
 - **Hybrid state model** — local toggle for instant feedback, host-authoritative when it speaks
 - **Clean architecture** — device abstraction layer, separation of concerns, testable components
 - **Rock-solid reliability** — NO unexpected resets during live performance; stability is paramount
@@ -73,7 +73,7 @@ These decisions were made during the 2026-01-23 brainstorming session:
 | 2 | Button label slots on screen | ✅ Working |
 | 3 | JSON config for button→MIDI mappings | ✅ Working |
 | 4 | Momentary + Toggle modes per button | ✅ Working |
-| 5 | Multi-device support (STD10 + Mini6) | ✅ Working |
+| 5 | Multi-device support (STD10 + Mini6 + NANO4) | ✅ Working |
 | 6 | SysEx for dynamic labels/colors | Post-MVP |
 | 7 | Long-press detection | Post-MVP |
 | 8 | Center status area | Post-MVP |
@@ -114,7 +114,7 @@ All code in `firmware/original_helmut/` is authored by **Helmut Keller** and mus
 |------|---------|
 | `firmware/original_helmut/` | Helmut Keller's original firmware — **DO NOT MODIFY** |
 | `firmware/dev/` | Active development — refactored code goes here |
-| `firmware/dev/devices/` | Device abstraction modules (std10.py, mini6.py) |
+| `firmware/dev/devices/` | Device abstraction modules (std10.py, mini6.py, nano4.py) |
 | `firmware/dev/experiments/` | Throwaway experiments and proof-of-concepts |
 | `firmware/dev/core/` | Core modules (button.py, config.py, colors.py) |
 | `firmware/dev/fonts/` | PCF display fonts (PTSans variants) |
@@ -179,7 +179,7 @@ git push origin v1.0.0-alpha.1
 
 ## CircuitPython Practices
 
-This project uses CircuitPython firmware deployed to hardware devices (Mini6, MCM, STD10). Always verify changes work with the target hardware constraints. For mpy-cross, use Adafruit's CircuitPython builds, NOT MicroPython pip packages.
+This project uses CircuitPython firmware deployed to hardware devices (NANO4, Mini6, STD10). Always verify changes work with the target hardware constraints. For mpy-cross, use Adafruit's CircuitPython builds, NOT MicroPython pip packages.
 
 - Target **CircuitPython 7.x** (7.3.1 verified on devices)
 - Board identifies as `raspberry_pi_pico` (RP2040 MCU)
@@ -239,6 +239,13 @@ For historical context on reverse engineering, see [docs/midicaptain_reverse_eng
 - ST7789 240×240 display (same params as STD10)
 - No encoder or expression inputs
 
+### NANO4 (4-switch)
+- 12 NeoPixels (4 switches × 3 LEDs) on GP7
+- 4 switch inputs: GP1, `board.LED` (GP25), GP9, GP10 — all a subset of STD10/Mini6 pins
+- 2×2 grid layout: TL, TR, BL, BR
+- ST7789 240×240 display (same params as STD10/Mini6)
+- No encoder or expression inputs
+
 ### 5-pin DIN MIDI
 
 - **TX pin**: `board.GP16`, **RX pin**: `board.GP17`, **baud**: `31250`, **timeout**: `0.003`
@@ -253,15 +260,16 @@ For historical context on reverse engineering, see [docs/midicaptain_reverse_eng
 
 ### Device Auto-Detection
 Two-tier detection (config first, then hardware probe):
-1. **Config-based**: reads `"device"` field from `/config.json` (`"mini6"` or `"std10"`)
-2. **Hardware probe fallback**: checks STD10-exclusive switch pins (GP0/GP18/GP19/GP20) — if 3+ read HIGH with pull-ups, it's STD10; otherwise Mini6
+1. **Config-based**: reads `"device"` field from `/config.json` (`"nano4"`, `"mini6"`, or `"std10"`)
+2. **Hardware probe fallback**: checks STD10-exclusive switch pins (GP0/GP18/GP19/GP20) — if 3+ read HIGH with pull-ups, it's STD10; otherwise Mini6. Cannot distinguish Mini6 from NANO4 by probe alone.
 
-**Note**: The old approach (probing `board.LED`/`board.VBUS_SENSE` for Mini6) was broken — GP25 exists on both devices, so everything was detected as Mini6. Always include `"device"` in config.json.
+**Note**: The old approach (probing `board.LED`/`board.VBUS_SENSE` for Mini6) was broken — GP25 exists on both devices, so everything was detected as Mini6. Always include `"device"` in config.json. This is especially important for NANO4, which shares all its switch pins with Mini6 and cannot be distinguished by hardware probe.
 
 ### Device Abstraction
 Device-specific constants live in `firmware/dev/devices/`:
 - `std10.py` — STD10 pin definitions and counts ✅
 - `mini6.py` — Mini6 pin definitions ✅
+- `nano4.py` — NANO4 pin definitions ✅
 
 ---
 
@@ -456,7 +464,8 @@ Track features, bugs, and future work via [GitHub Issues](https://github.com/MC-
 - [ ] CI workflow DRY: `Setup Node.js` + `Install frontend dependencies` duplicated between `build-config-editor-macos` and `build-config-editor-windows` — could be a composite action
 - [ ] Release workflow DRY: find/rename/warn pattern in `Prepare release assets` repeats 3× (DMG, MSI, NSIS) — could be a shell function
 - [ ] Windows Signing Cert
-- [ ] Support for 1/2/4-switch variants
+- [x] NANO4 device support (4-switch variant) — hardware probed 2026-04-01, device module + firmware + config editor
+- [ ] Support for 1/2-switch variants
 - [ ] Custom display layouts
 - [ ] SysEx protocol documentation
 - [ ] Keytimes / multi-press cycling
@@ -591,7 +600,7 @@ Full button config fields:
 Top-level config fields:
 ```json
 {
-  "device": "std10|mini6",
+  "device": "std10|mini6|nano4",
   "global_channel": 0,
   "usb_drive_name": "MIDICAPTAIN",
   "dev_mode": false,
@@ -605,7 +614,7 @@ Top-level config fields:
 **`usb_drive_name`** — label applied to the FAT32 volume when USB is enabled. Defaults to `"MIDICAPTAIN"`. Configurable in the GUI "Device Settings" section. Validation rules (enforced by `validate_usb_drive_name()` in `core/config.py`): max 11 chars, uppercase alphanumeric + underscore only, auto-uppercased, special chars stripped, empty/all-invalid falls back to `"MIDICAPTAIN"`.
 
 Tooling support for custom names:
-- **`deploy.sh`** reads `usb_drive_name` from `config.json` and `config-mini6.json` and adds them to the mount-point search. Candidate order: `CIRCUITPY`, `MIDICAPTAIN`, then any `usb_drive_name` values found in local configs. Checked under `/Volumes/`, `/media/$USER/`, `/run/media/$USER/`.
+- **`deploy.sh`** reads `usb_drive_name` from `config.json`, `config-mini6.json`, and `config-nano4.json` and adds them to the mount-point search. Candidate order: `CIRCUITPY`, `MIDICAPTAIN`, then any `usb_drive_name` values found in local configs. Checked under `/Volumes/`, `/media/$USER/`, `/run/media/$USER/`.
 - **GUI config editor** detects devices by volume name *and* config content. Known names (`CIRCUITPY`, `MIDICAPTAIN`) are always accepted. Custom-named volumes are accepted only when the config.json inside them (a) has `"device": "std10"` or `"mini6"`, and (b) the `usb_drive_name` in that config matches the actual volume name (case-insensitive). This cross-check prevents a stray config.json on an unrelated volume from being treated as a device. The same cross-check applies in `validate_device_path()` (path security gate in `commands.rs`).
 
 **`dev_mode`** — boolean controlling USB drive mount behaviour at boot:
@@ -728,12 +737,14 @@ if enable_usb_drive:
 | `firmware/dev/boot.py` | Disables autoreload; USB drive gated by `dev_mode` config flag or Switch 1 hold; applies custom drive label |
 | `firmware/dev/config.json` | STD10 default config (button labels, CC numbers, colors, drive name, dev_mode) |
 | `firmware/dev/config-mini6.json` | Mini6 template config (copy to device as config.json) |
+| `firmware/dev/config-nano4.json` | NANO4 template config (copy to device as config.json) |
 | `firmware/dev/VERSION` | Firmware version (generated, gitignored) |
 | `firmware/dev/core/config.py` | Config loading; `get_usb_drive_name()`, `validate_usb_drive_name()`, `get_dev_mode()`, `get_display_config()`; `STATE_OVERRIDE_FIELDS` |
 | `firmware/dev/core/button.py` | `ButtonState` class: toggle/momentary mode, keytimes cycling |
 | `firmware/dev/core/colors.py` | Color palette and `get_off_color()` utilities |
 | `firmware/dev/devices/std10.py` | STD10 hardware constants |
 | `firmware/dev/devices/mini6.py` | Mini6 hardware constants |
+| `firmware/dev/devices/nano4.py` | NANO4 hardware constants |
 | `firmware/original_helmut/code.py` | Helmut's original firmware (reference only, DO NOT MODIFY) |
 | `tools/deploy.sh` | Dev deploy to device (rsync, VERSION, device detection) |
 | `docs/hardware-reference.md` | Verified hardware specs, auto-detection docs |

@@ -1,7 +1,7 @@
 # MIDI Captain Hardware Reference
 
-> **Last Updated:** January 29, 2026  
-> **Verified On:** STD10 hardware with CircuitPython 7.3.1
+> **Last Updated:** April 1, 2026
+> **Verified On:** STD10, Mini6, and NANO4 hardware with CircuitPython 7.3.1
 
 This document contains verified hardware specifications for Paint Audio MIDI Captain devices.
 For historical context on how these were discovered, see [midicaptain_reverse_engineering_handoff.md](midicaptain_reverse_engineering_handoff.md).
@@ -14,6 +14,7 @@ The firmware automatically detects which device it's running on by probing hardw
 
 - **STD10**: Has encoder on GP2/GP3, 11 total switch inputs
 - **Mini6**: Uses unusual pins (board.LED, board.VBUS_SENSE) for switches
+- **NANO4**: 4 switches using a subset of STD10/Mini6 pins (GP1, board.LED, GP9, GP10)
 
 Detection happens before config loading, so the same `code.py` works on all devices.
 
@@ -22,7 +23,7 @@ Detection happens before config loading, so the same `code.py` works on all devi
 - **`config.json`** — User configuration (optional). If present, always used.
 - **Built-in defaults** — If no config.json, firmware uses basic numbered buttons matching detected device's button count.
 
-The `config-mini6.json` file in the repo is a template/example for Mini6 users to copy to their device as `config.json`.
+The `config-mini6.json` and `config-nano4.json` files in the repo are templates/examples for Mini6 and NANO4 users to copy to their device as `config.json`.
 
 ---
 
@@ -173,6 +174,64 @@ Same parameters as STD10:
 
 - No rotary encoder
 - No expression pedal inputs (TBD — may need probing)
+
+---
+
+## NANO4 (4-Switch)
+
+> **Verified:** April 1, 2026 — probed on physical NANO 4 hardware using pin scanner, NeoPixel probe, and display probe scripts (`firmware/dev/experiments/nano4_probe.py`, `nano4_led_probe.py`, `nano4_display_probe.py`).
+
+### Physical Layout
+
+```
+┌─────────────────────────────┐
+│          [DISPLAY]          │
+│           240×240           │
+├─────────────────────────────┤
+│                             │
+│     ┌───┐       ┌───┐      │
+│     │TL │       │TR │      │
+│     └───┘       └───┘      │
+│                             │
+│     ┌───┐       ┌───┐      │
+│     │BL │       │BR │      │
+│     └───┘       └───┘      │
+│                             │
+└─────────────────────────────┘
+```
+
+### Switch Mapping
+
+| Position | GPIO Pin | Notes |
+|----------|----------|-------|
+| Top-Left (TL) | GP1 | Also used as boot mode pin |
+| Top-Right (TR) | board.LED (GP25) | Repurposed as input |
+| Bottom-Left (BL) | GP9 | — |
+| Bottom-Right (BR) | GP10 | — |
+
+**Pin overlap with other devices:** All 4 pins are a subset of both STD10 and Mini6 switch pins. GP1, GP9, and GP10 are standard GPIO; `board.LED` (GP25) is repurposed as an input (same as Mini6 TM). Unlike Mini6, NANO4 does **not** use `board.VBUS_SENSE`.
+
+### NeoPixels
+
+- **Pin:** GP7 (same as STD10/Mini6)
+- **Count:** 12 (3 LEDs per switch × 4 switches)
+- **Chain Order:** TL → TR → BL → BR (LEDs 0-3, where each LED = 3 consecutive pixels)
+- **Per-Switch:** 3 consecutive pixels in left → right → bottom order within each ring
+
+### Display
+
+Same parameters as STD10/Mini6:
+- ST7789, 240×240, rowstart=80, rotation=180
+- Same SPI pins (GP12-15)
+
+### Serial MIDI
+
+Not yet probed, but expected to use the same UART pins as STD10/Mini6 (GP16 TX, GP17 RX, 31250 baud) since the PCB design appears shared.
+
+### Not Present
+
+- No rotary encoder
+- No expression pedal inputs
 
 ---
 
