@@ -8,7 +8,7 @@
 
 This firmware transforms your MIDI Captain into a **bidirectional MIDI controller** where your host software (DAW, plugin host) can control the device's LEDs and display, not just receive button presses.
 
-Momentary and toggle modes are currently supported. Many more issues are coming! [See here for all open features and issues](https://github.com/MC-Music-Workshop/midi-captain-max/issues).
+Momentary and toggle modes are currently supported. Many more issues are coming! See here for [all open features and issues](https://github.com/MC-Music-Workshop/midi-captain-max/issues), and [the prioritized Kanban board of upcoming work](https://github.com/orgs/MC-Music-Workshop/projects/1/views/1).
 
 ## Key Features
 - 🔄 **Bidirectional MIDI** — Host can update LEDs/display state on MCM
