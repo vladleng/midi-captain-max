@@ -227,14 +227,16 @@ if [ "$DO_INSTALL" = true ]; then
     fi
     echo -e "${GREEN}✓ circup available${NC}"
 
-    # Install each library
+    # Install each library (--path must come before the subcommand)
+    # --allow-unsupported: we target CP 7.x which circup considers EOL
+    CIRCUP="circup --path $MOUNT_POINT --allow-unsupported"
     for lib in "${REQUIRED_LIBS[@]}"; do
         echo -n "  Installing $lib... "
-        if circup install "$lib" --py 2>/dev/null; then
+        if $CIRCUP install "$lib" --py 2>/dev/null; then
             echo -e "${GREEN}✓${NC}"
         else
             # Try without --py flag for compiled libs
-            if circup install "$lib" 2>/dev/null; then
+            if $CIRCUP install "$lib" 2>/dev/null; then
                 echo -e "${GREEN}✓${NC}"
             else
                 echo -e "${YELLOW}(already installed)${NC}"
