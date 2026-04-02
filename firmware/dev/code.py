@@ -140,12 +140,15 @@ print(f"Hardware detected: {DETECTED_DEVICE}")
 if DETECTED_DEVICE == "duo2":
     from devices.duo2 import (
         LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
-        ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN
+        ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN,
+        SEG_DISPLAY_TX_PIN, SEG_DISPLAY_RX_PIN, SEG_DISPLAY_BAUDRATE,
+        SEG_DISPLAY_HEADER, SEG_DISPLAY_FOOTER,
+        SEG_DISPLAY_DELAY_MS, SEG_DISPLAY_REPEATS
     )
+    TFT_DC_PIN = None
     BUTTON_COUNT = 2
     HAS_ENCODER = False
     HAS_EXPRESSION = False
-    HAS_DISPLAY = False
 elif DETECTED_DEVICE == "nano4":
     from devices.nano4 import (
         LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
@@ -153,10 +156,10 @@ elif DETECTED_DEVICE == "nano4":
         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ROWSTART, DISPLAY_ROTATION,
         ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN
     )
+    SEG_DISPLAY_TX_PIN = None
     BUTTON_COUNT = 4
     HAS_ENCODER = False
     HAS_EXPRESSION = False
-    HAS_DISPLAY = True
 elif DETECTED_DEVICE == "mini6":
     from devices.mini6 import (
         LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
@@ -164,10 +167,10 @@ elif DETECTED_DEVICE == "mini6":
         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ROWSTART, DISPLAY_ROTATION,
         ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN
     )
+    SEG_DISPLAY_TX_PIN = None
     BUTTON_COUNT = 6
     HAS_ENCODER = False
     HAS_EXPRESSION = False
-    HAS_DISPLAY = True
 else:
     # Default to STD10
     from devices.std10 import (
@@ -176,10 +179,14 @@ else:
         DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ROWSTART, DISPLAY_ROTATION,
         ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN
     )
+    SEG_DISPLAY_TX_PIN = None
     BUTTON_COUNT = 10
     HAS_ENCODER = True
     HAS_EXPRESSION = True
-    HAS_DISPLAY = True
+
+# Derive display type flags from hardware constants
+HAS_TFT = TFT_DC_PIN is not None
+HAS_SEG_DISPLAY = SEG_DISPLAY_TX_PIN is not None
 
 DEVICE_TYPE = DETECTED_DEVICE  # For compatibility
 
@@ -249,7 +256,7 @@ print(f"Loaded {len(buttons)} button configs")
 # =============================================================================
 
 
-if HAS_DISPLAY:
+if HAS_TFT:
     import displayio
     from adafruit_display_text import label
     from adafruit_bitmap_font import bitmap_font
@@ -284,7 +291,7 @@ def load_font(size_name):
         return terminalio.FONT, 8
 
 
-if HAS_DISPLAY:
+if HAS_TFT:
     # Load display config
     display_config = get_display_config(config)
     button_text_size = display_config["button_text_size"]
@@ -305,8 +312,8 @@ if HAS_DISPLAY:
 # NeoPixels
 pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, brightness=0.3, auto_write=False)
 
-# Display
-if HAS_DISPLAY:
+# Display — TFT
+if HAS_TFT:
     displayio.release_displays()
     spi = busio.SPI(clock=TFT_SCK_PIN, MOSI=TFT_MOSI_PIN)
     display_bus = displayio.FourWire(spi, command=TFT_DC_PIN, chip_select=TFT_CS_PIN)
@@ -450,7 +457,7 @@ status_label = None
 exp1_label = None
 exp2_label = None
 
-if HAS_DISPLAY:
+if HAS_TFT:
     main_group = displayio.Group()
 
     # Background
@@ -559,6 +566,69 @@ if HAS_DISPLAY:
 
     display.show(main_group)
 
+# Segmented LCD display
+if HAS_SEG_DISPLAY:
+    _seg_uart = busio.UART(SEG_DISPLAY_TX_PIN, SEG_DISPLAY_RX_PIN,
+                           baudrate=SEG_DISPLAY_BAUDRATE, timeout=0.1)
+    _SEG_DIGITS = [0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F]
+
+    def _seg_display_number(n):
+        """Send a number (0-999) to the 3-digit 7-segment display."""
+        n = max(0, min(999, int(n)))
+        d1 = _SEG_DIGITS[(n // 100) % 10] if n >= 100 else 0x00
+        d2 = _SEG_DIGITS[(n // 10) % 10] if n >= 10 else 0x00
+        d3 = _SEG_DIGITS[n % 10]
+        frame = bytes([SEG_DISPLAY_HEADER, d1, d2, d3, SEG_DISPLAY_FOOTER])
+        for _ in range(SEG_DISPLAY_REPEATS):
+            _seg_uart.write(frame)
+            time.sleep(SEG_DISPLAY_DELAY_MS / 1000.0)
+
+    print("Seg display initialized (GP4/GP5, 9600 baud)")
+
+
+# =============================================================================
+# Status Display Abstraction
+# =============================================================================
+# update_status(text) — single function, defined once per display type.
+# TFT: shows text as-is. Seg display: extracts last number and shows it.
+# No display: no-op. Call sites just pass a string.
+
+def _extract_last_number(text):
+    """Extract the last integer from a string. Returns None if not found."""
+    num_str = ""
+    found = None
+    for c in text:
+        if '0' <= c <= '9':
+            num_str += c
+        else:
+            if num_str:
+                found = int(num_str)
+                num_str = ""
+    if num_str:
+        found = int(num_str)
+    return found
+
+
+if HAS_TFT and HAS_SEG_DISPLAY:
+    # Both displays (shouldn't happen in practice, but handle it)
+    def update_status(text):
+        status_label.text = text
+        n = _extract_last_number(text)
+        if n is not None:
+            _seg_display_number(n)
+elif HAS_TFT:
+    def update_status(text):
+        status_label.text = text
+elif HAS_SEG_DISPLAY:
+    def update_status(text):
+        n = _extract_last_number(text)
+        if n is not None:
+            _seg_display_number(n)
+else:
+    def update_status(text):
+        pass
+
+
 # =============================================================================
 # LED & Display Helpers
 # =============================================================================
@@ -604,7 +674,7 @@ def set_button_state(switch_idx, on):
         pixels.show()
 
     # Update display
-    if HAS_DISPLAY and idx < len(button_labels):
+    if HAS_TFT and idx < len(button_labels):
         color_hex = rgb_to_hex(color_rgb if on else get_off_color_for_display(color_rgb, off_mode))
         button_labels[idx].color = color_hex
         if idx < len(button_boxes):
@@ -663,7 +733,7 @@ def _process_midi_msg(msg, source="USB"):
             if btn_config.get("type", "cc") == "cc" and btn_config.get("cc") == cc and btn_config.get("channel", 0) == msg_channel:
                 new_state = button_states[i].on_midi_receive(val)
                 set_button_state(i + 1, new_state)
-                if status_label: status_label.text = f"RX CC{cc}={val}"
+                update_status(f"RX CC{cc}={val}")
                 break
 
     elif isinstance(msg, NoteOn):
@@ -673,7 +743,7 @@ def _process_midi_msg(msg, source="USB"):
         for i, btn_config in enumerate(buttons):
             if btn_config.get("type") == "note" and btn_config.get("note") == note and btn_config.get("channel", 0) == msg_channel:
                 set_button_state(i + 1, vel > 0)
-                if status_label: status_label.text = f"RX Note{note}"
+                update_status(f"RX Note{note}")
                 break
 
     elif isinstance(msg, NoteOff):
@@ -682,14 +752,14 @@ def _process_midi_msg(msg, source="USB"):
         for i, btn_config in enumerate(buttons):
             if btn_config.get("type") == "note" and btn_config.get("note") == note and btn_config.get("channel", 0) == msg_channel:
                 set_button_state(i + 1, False)
-                if status_label: status_label.text = f"RX NoteOff{note}"
+                update_status(f"RX NoteOff{note}")
                 break
 
     elif isinstance(msg, ProgramChange):
         program = msg.patch
         print(f"[MIDI RX {source}] Ch{msg_channel+1} PC{program}")
         pc_values[msg_channel] = program
-        if status_label: status_label.text = f"RX PC{program}"
+        update_status(f"RX PC{program}")
 
 
 def handle_midi():
@@ -749,7 +819,7 @@ def handle_switches():
                     set_button_state(btn_num, pressed)
                     midi_send(ControlChange(cc, val, channel=channel))
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, momentary)")
-                    if status_label: status_label.text = f"TX CC{cc}={val}"
+                    update_status(f"TX CC{cc}={val}")
                 elif pressed:
                     # Keytimes cycling always stays on; standard toggle flips on/off
                     new_state = True if btn_state.keytimes > 1 else not btn_state.state
@@ -758,7 +828,7 @@ def handle_switches():
                     val = cc_on if new_state else cc_off
                     midi_send(ControlChange(cc, val, channel=channel))
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, toggle)")
-                    if status_label: status_label.text = f"TX CC{cc}={'ON' if new_state else 'OFF'}"
+                    update_status(f"TX CC{cc}={val}")
 
             elif message_type == "note":
                 if pressed:
@@ -772,7 +842,7 @@ def handle_switches():
                         midi_send(NoteOn(note, vel_on, channel=channel))
                         set_button_state(btn_num, True)
                         print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel_on} (switch {btn_num})")
-                        if status_label: status_label.text = f"TX Note{note}"
+                        update_status(f"TX Note{note}")
                     else:
                         midi_send(NoteOff(note, vel_off, channel=channel))
                         set_button_state(btn_num, False)
@@ -785,11 +855,11 @@ def handle_switches():
                     if new_state:
                         midi_send(NoteOn(note, vel_on, channel=channel))
                         print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel_on} (switch {btn_num}, toggle on)")
-                        if status_label: status_label.text = f"TX Note{note} ON"
+                        update_status(f"TX Note{note} ON")
                     else:
                         midi_send(NoteOff(note, vel_off, channel=channel))
                         print(f"[MIDI TX] Ch{channel+1} NoteOff{note} (switch {btn_num}, toggle off)")
-                        if status_label: status_label.text = f"TX Note{note} OFF"
+                        update_status(f"TX Note{note} OFF")
 
             elif message_type == "pc" and pressed:
                 btn_state.advance_keytime()
@@ -797,7 +867,7 @@ def handle_switches():
                 program = state_cfg.get("program", 0)
                 midi_send(ProgramChange(program, channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
-                if status_label: status_label.text = f"TX PC{program}"
+                update_status(f"TX PC{program}")
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
             elif message_type == "pc_inc" and pressed:
@@ -807,7 +877,7 @@ def handle_switches():
                 pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
                 midi_send(ProgramChange(pc_values[channel], channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, inc)")
-                if status_label: status_label.text = f"TX PC{pc_values[channel]}"
+                update_status(f"TX PC{pc_values[channel]}")
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
             elif message_type == "pc_dec" and pressed:
@@ -817,7 +887,7 @@ def handle_switches():
                 pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
                 midi_send(ProgramChange(pc_values[channel], channel=channel))
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, dec)")
-                if status_label: status_label.text = f"TX PC{pc_values[channel]}"
+                update_status(f"TX PC{pc_values[channel]}")
                 flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
 
@@ -838,13 +908,13 @@ def handle_encoder_button():
                 cc_val = ENC_PUSH_CC_ON if encoder_push_state else ENC_PUSH_CC_OFF
                 midi_send(ControlChange(CC_ENCODER_PUSH, cc_val, channel=ENC_PUSH_CHANNEL))
                 print(f"[MIDI TX] Ch{ENC_PUSH_CHANNEL+1} CC{CC_ENCODER_PUSH}={cc_val} (encoder push, toggle)")
-                if status_label: status_label.text = f"TX CC{CC_ENCODER_PUSH}={'ON' if encoder_push_state else 'OFF'}"
+                update_status(f"TX CC{CC_ENCODER_PUSH}={cc_val}")
         else:
             # Momentary mode: send on press and release
             cc_val = ENC_PUSH_CC_ON if pressed else ENC_PUSH_CC_OFF
             midi_send(ControlChange(CC_ENCODER_PUSH, cc_val, channel=ENC_PUSH_CHANNEL))
             print(f"[MIDI TX] Ch{ENC_PUSH_CHANNEL+1} CC{CC_ENCODER_PUSH}={cc_val} (encoder push, momentary)")
-            if status_label: status_label.text = f"TX CC{CC_ENCODER_PUSH}={cc_val}"
+            update_status(f"TX CC{CC_ENCODER_PUSH}={cc_val}")
 
 
 def handle_encoder():
@@ -873,12 +943,12 @@ def handle_encoder():
                 # Output CC is the slot number (0 to steps-1)
                 midi_send(ControlChange(CC_ENCODER, encoder_slot, channel=ENC_CHANNEL))
                 print(f"[ENCODER] Ch{ENC_CHANNEL+1} CC{CC_ENCODER}={encoder_slot} (slot)")
-                if status_label: status_label.text = f"ENC slot {encoder_slot}"
+                update_status(f"ENC slot {encoder_slot}")
         else:
             # Normal mode: send every change
             midi_send(ControlChange(CC_ENCODER, encoder_value, channel=ENC_CHANNEL))
             print(f"[ENCODER] Ch{ENC_CHANNEL+1} CC{CC_ENCODER}={encoder_value}")
-            if status_label: status_label.text = f"ENC={encoder_value}"
+            update_status(f"ENC={encoder_value}")
 
 
 def handle_expression():
