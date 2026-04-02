@@ -6,17 +6,21 @@
 # Usage: ./deploy.sh [options] [mount_point]
 #
 # Options:
-#   --install     Full install: check/install libraries first
-#   --libs-only   Only install libraries (no firmware copy)
-#   --eject       Eject device after deploy (forces clean reload)
-#   --fresh       Overwrite config.json even if it exists
+#   --device TYPE   First-time setup for a device type (nano4, mini6, std10).
+#                   Writes the correct config template, installs CircuitPython
+#                   libraries, and deploys firmware. The go-to for new devices.
+#   --reset-config  Overwrite config.json with the device-type template defaults.
+#                   Does not reinstall libraries.
+#   --install       Check/install CircuitPython libraries without touching config.
+#   --libs-only     Only install libraries (no firmware copy).
+#   --eject         Eject device after deploy (forces clean reload).
 #
 # Examples:
-#   ./deploy.sh                          # Quick deploy
-#   ./deploy.sh --install                # Full install with libraries
-#   ./deploy.sh --libs-only              # Just install CircuitPython libs
+#   ./deploy.sh                          # Quick deploy (sync firmware only)
+#   ./deploy.sh --device nano4           # First-time NANO4 setup (config + libs + firmware)
+#   ./deploy.sh --reset-config           # Reset config.json to template defaults
+#   ./deploy.sh --install                # Re-check/install libraries
 #   ./deploy.sh --eject                  # Deploy + eject (clean disconnect)
-#   ./deploy.sh --fresh                  # Deploy + overwrite config
 #   ./deploy.sh /Volumes/MIDICAPT        # Custom mount point
 #
 # Requires boot.py on device with autoreload disabled for best results.
@@ -50,7 +54,8 @@ DO_EJECT=false
 DO_RESET=false
 DO_INSTALL=false
 LIBS_ONLY=false
-DO_FRESH=false
+DO_RESET_CONFIG=false
+FORCE_DEVICE_TYPE=""
 
 # Required CircuitPython libraries
 REQUIRED_LIBS=(
@@ -68,9 +73,29 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Valid device types
+VALID_DEVICES="nano4 mini6 std10"
+
 # Parse arguments
-for arg in "$@"; do
+ARGS=("$@")
+i=0
+while [ $i -lt ${#ARGS[@]} ]; do
+    arg="${ARGS[$i]}"
     case $arg in
+        --device)
+            i=$((i + 1))
+            if [ $i -ge ${#ARGS[@]} ]; then
+                echo -e "${RED}❌ --device requires a type: $VALID_DEVICES${NC}"
+                exit 1
+            fi
+            FORCE_DEVICE_TYPE="${ARGS[$i]}"
+            # Validate device type
+            if ! echo "$VALID_DEVICES" | grep -qw "$FORCE_DEVICE_TYPE"; then
+                echo -e "${RED}❌ Unknown device type: $FORCE_DEVICE_TYPE${NC}"
+                echo "Valid types: $VALID_DEVICES"
+                exit 1
+            fi
+            ;;
         --install)
             DO_INSTALL=true
             ;;
@@ -81,26 +106,44 @@ for arg in "$@"; do
         --eject)
             DO_EJECT=true
             ;;
+        --reset-config)
+            DO_RESET_CONFIG=true
+            ;;
         --fresh)
-            DO_FRESH=true
+            # Backwards compat: --fresh is now --reset-config
+            echo -e "${YELLOW}⚠️  --fresh is deprecated, use --reset-config${NC}"
+            DO_RESET_CONFIG=true
             ;;
         --help|-h)
             echo "Usage: ./deploy.sh [options] [mount_point]"
             echo ""
             echo "Options:"
-            echo "  --install     Full install: check/install libraries first"
-            echo "  --libs-only   Only install libraries (no firmware copy)"
-            echo "  --eject       Eject device after deploy (forces clean reload)"
-            echo "  --fresh       Overwrite config.json even if it exists"
+            echo "  --device TYPE   First-time setup (config + libs + firmware)"
+            echo "                  Valid types: $VALID_DEVICES"
+            echo "  --reset-config  Overwrite config.json with template defaults"
+            echo "  --install       Check/install CircuitPython libraries"
+            echo "  --libs-only     Only install libraries (no firmware copy)"
+            echo "  --eject         Eject device after deploy (forces clean reload)"
             echo ""
-            echo "Works from both development repository and distributed package."
+            echo "Quick deploy (no flags) syncs firmware only, preserves config."
             exit 0
             ;;
         /*)
             MOUNT_POINT="$arg"
             ;;
+        *)
+            echo -e "${RED}❌ Unknown argument: $arg${NC}"
+            echo "Run ./deploy.sh --help for usage"
+            exit 1
+            ;;
     esac
+    i=$((i + 1))
 done
+
+# --device implies --install (libraries) and config write
+if [ -n "$FORCE_DEVICE_TYPE" ]; then
+    DO_INSTALL=true
+fi
 
 echo -e "${BLUE}=== MIDI Captain Firmware Deploy ===${NC}"
 echo ""
@@ -109,7 +152,7 @@ echo ""
 if [ ! -d "$MOUNT_POINT" ]; then
     # Build candidate list: well-known defaults + usb_drive_name from local config files
     CANDIDATE_NAMES=("CIRCUITPY" "MIDICAPTAIN")
-    for cfg_file in "$DEV_DIR/config.json" "$DEV_DIR/config-mini6.json"; do
+    for cfg_file in "$DEV_DIR/config.json" "$DEV_DIR/config-mini6.json" "$DEV_DIR/config-nano4.json"; do
         if [ -f "$cfg_file" ]; then
             # Parse usb_drive_name: use jq if available, fall back to grep/sed
             if command -v jq &>/dev/null; then
@@ -167,11 +210,11 @@ fi
 
 echo -e "${GREEN}✓ Device found at $MOUNT_POINT${NC}"
 
-# Install libraries if requested
+# Install libraries if requested (--install or --device)
 if [ "$DO_INSTALL" = true ]; then
     echo ""
     echo -e "${YELLOW}📦 Installing CircuitPython libraries...${NC}"
-    
+
     # Check for circup
     if ! command -v circup &> /dev/null; then
         echo "  circup not found. Installing..."
@@ -183,15 +226,17 @@ if [ "$DO_INSTALL" = true ]; then
         fi
     fi
     echo -e "${GREEN}✓ circup available${NC}"
-    
-    # Install each library
+
+    # Install each library (--path must come before the subcommand)
+    # --allow-unsupported: we target CP 7.x which circup considers EOL
+    CIRCUP="circup --path $MOUNT_POINT --allow-unsupported"
     for lib in "${REQUIRED_LIBS[@]}"; do
         echo -n "  Installing $lib... "
-        if circup install "$lib" --py 2>/dev/null; then
+        if $CIRCUP install "$lib" --py 2>/dev/null; then
             echo -e "${GREEN}✓${NC}"
         else
             # Try without --py flag for compiled libs
-            if circup install "$lib" 2>/dev/null; then
+            if $CIRCUP install "$lib" 2>/dev/null; then
                 echo -e "${GREEN}✓${NC}"
             else
                 echo -e "${YELLOW}(already installed)${NC}"
@@ -199,7 +244,7 @@ if [ "$DO_INSTALL" = true ]; then
         fi
     done
     echo -e "${GREEN}✓ Libraries installed${NC}"
-    
+
     # Exit early if libs-only mode
     if [ "$LIBS_ONLY" = true ]; then
         echo ""
@@ -217,9 +262,12 @@ else
     echo "📦 Mode: Distribution package"
 fi
 
-# Detect device type from existing config on device, or by mount point
+# Detect device type: --device flag > existing config on device > default std10
 DEVICE_TYPE=""
-if [ -f "$MOUNT_POINT/config.json" ]; then
+if [ -n "$FORCE_DEVICE_TYPE" ]; then
+    DEVICE_TYPE="$FORCE_DEVICE_TYPE"
+    echo "📌 Device type set via --device: $DEVICE_TYPE"
+elif [ -f "$MOUNT_POINT/config.json" ]; then
     # Try to read device type from existing config
     DETECTED=$(grep -o '"device"[[:space:]]*:[[:space:]]*"[^"]*"' "$MOUNT_POINT/config.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
     if [ -n "$DETECTED" ]; then
@@ -230,13 +278,16 @@ fi
 # Fallback: cannot determine device type without a config; default to std10
 if [ -z "$DEVICE_TYPE" ]; then
     DEVICE_TYPE="std10"
+    echo -e "${YELLOW}⚠️  No device type detected — defaulting to std10. Use --device TYPE to override.${NC}"
 fi
 
 echo "🎛️  Device type: $DEVICE_TYPE"
 echo ""
 
 # Select appropriate config file
-if [ "$DEVICE_TYPE" = "mini6" ]; then
+if [ "$DEVICE_TYPE" = "nano4" ]; then
+    CONFIG_FILE="$DEV_DIR/config-nano4.json"
+elif [ "$DEVICE_TYPE" = "mini6" ]; then
     CONFIG_FILE="$DEV_DIR/config-mini6.json"
 else
     CONFIG_FILE="$DEV_DIR/config.json"
@@ -324,13 +375,29 @@ rsync -av --checksum --inplace --itemize-changes \
 
 sync
 
-# 3. Deploy config ONLY if it doesn't exist (preserve user customizations)
-if [ ! -f "$MOUNT_POINT/config.json" ] || [ "$DO_FRESH" = true ]; then
-    if [ "$DO_FRESH" = true ] && [ -f "$MOUNT_POINT/config.json" ]; then
-        echo "📝 Overwriting config.json with fresh default (--fresh mode)..."
+# 3. Deploy config
+# --device: always write config (first-time setup for this device type)
+# --reset-config: overwrite existing config with template defaults
+# No flag: only write config if one doesn't exist yet (preserve user customizations)
+WRITE_CONFIG=false
+if [ -n "$FORCE_DEVICE_TYPE" ]; then
+    WRITE_CONFIG=true
+    if [ -f "$MOUNT_POINT/config.json" ]; then
+        echo "📝 Writing config.json for $DEVICE_TYPE (--device mode)..."
     else
-        echo "📝 Installing default config.json (device-specific)..."
+        echo "📝 Installing config.json for $DEVICE_TYPE..."
     fi
+elif [ "$DO_RESET_CONFIG" = true ]; then
+    WRITE_CONFIG=true
+    echo "📝 Resetting config.json to $DEVICE_TYPE template defaults (--reset-config)..."
+elif [ ! -f "$MOUNT_POINT/config.json" ]; then
+    WRITE_CONFIG=true
+    echo "📝 Installing default config.json (device-specific)..."
+else
+    echo "📝 Preserving existing config.json (use --reset-config to overwrite)"
+fi
+
+if [ "$WRITE_CONFIG" = true ]; then
     if [ -f "$CONFIG_FILE" ]; then
         rsync -av --checksum --inplace --itemize-changes \
             "$CONFIG_FILE" "$MOUNT_POINT/config.json"
@@ -338,13 +405,13 @@ if [ ! -f "$MOUNT_POINT/config.json" ] || [ "$DO_FRESH" = true ]; then
         rsync -av --checksum --inplace --itemize-changes \
             "$DEV_DIR/config.json" "$MOUNT_POINT/config.json"
     fi
-else
-    echo "📝 Preserving existing config.json (use --fresh to overwrite)"
 fi
 
-# 4. Deploy device-specific fallback config (reference only)
+# 4. Deploy device-specific fallback configs (reference only)
 rsync -av --checksum --inplace --itemize-changes \
     "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json"
+rsync -av --checksum --inplace --itemize-changes \
+    "$DEV_DIR/config-nano4.json" "$MOUNT_POINT/config-nano4.json"
 
 # 5. code.py LAST (all dependencies are now in place)
 rsync -av --checksum --inplace --itemize-changes \

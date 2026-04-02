@@ -95,7 +95,14 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
   const errors = new Map<string, string>();
   
   // Device-specific validation
-  if (config.device === 'mini6') {
+  if (config.device === 'nano4') {
+    if (config.buttons.length > 4) {
+      errors.set('device', 'NANO4 supports only 4 buttons');
+    }
+    if (config.encoder?.enabled) {
+      errors.set('encoder.enabled', 'NANO4 does not support encoder');
+    }
+  } else if (config.device === 'mini6') {
     if (config.buttons.length > 6) {
       errors.set('device', 'Mini6 supports only 6 buttons');
     }

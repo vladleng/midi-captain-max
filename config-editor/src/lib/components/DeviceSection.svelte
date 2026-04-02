@@ -45,10 +45,13 @@
       >
         <option value="std10">STD10 (10 buttons)</option>
         <option value="mini6">Mini6 (6 buttons)</option>
+        <option value="nano4">NANO4 (4 buttons)</option>
       </select>
-      
+
       <p class="help-text">
-        {#if $config.device === 'mini6'}
+        {#if $config.device === 'nano4'}
+          NANO4 supports 4 buttons only. Encoder and expression pedals are not available.
+        {:else if $config.device === 'mini6'}
           Mini6 supports 6 buttons only. Encoder and expression pedals are not available.
         {:else}
           STD10 supports 10 buttons, encoder, and expression pedals.

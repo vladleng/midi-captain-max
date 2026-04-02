@@ -238,87 +238,90 @@ function createDefaultButtons(startIndex: number, endIndex: number): ButtonConfi
   return defaults;
 }
 
+// Button count per device type
+const DEVICE_BUTTON_COUNT: Record<DeviceType, number> = {
+  nano4: 4,
+  mini6: 6,
+  std10: 10,
+};
+
+// Whether a device supports encoder
+const DEVICE_HAS_ENCODER: Record<DeviceType, boolean> = {
+  nano4: false,
+  mini6: false,
+  std10: true,
+};
+
 export function setDevice(deviceType: DeviceType) {
   formState.update(state => {
     const newState = { ...state };
     const currentDevice = state.config.device;
-    
-    // Switching TO Mini6: preserve STD10-only features
-    if (deviceType === 'mini6' && currentDevice === 'std10') {
-      // Preserve buttons 7-10
-      if (state.config.buttons.length > 6) {
-        newState._hiddenButtons = state.config.buttons.slice(6);
+    const targetCount = DEVICE_BUTTON_COUNT[deviceType];
+
+    // Same device: no-op
+    if (deviceType === currentDevice) {
+      return state;
+    }
+
+    // First-time initialization (no current device set)
+    if (!currentDevice) {
+      const buttons = state.config.buttons.slice(0, targetCount);
+      while (buttons.length < targetCount) {
+        buttons.push(createDefaultButton(buttons.length));
       }
-      
-      // Preserve encoder config
-      if (state.config.encoder) {
+      newState.config = {
+        ...state.config,
+        device: deviceType,
+        buttons,
+        encoder: !DEVICE_HAS_ENCODER[deviceType] && state.config.encoder
+          ? { ...state.config.encoder, enabled: false }
+          : state.config.encoder,
+      };
+      return pushHistory(newState);
+    }
+
+    const currentCount = DEVICE_BUTTON_COUNT[currentDevice];
+
+    // Switching to a device with fewer buttons: preserve extras
+    if (targetCount < currentCount) {
+      if (state.config.buttons.length > targetCount) {
+        newState._hiddenButtons = state.config.buttons.slice(targetCount);
+      }
+      if (state.config.encoder && DEVICE_HAS_ENCODER[currentDevice]) {
         newState._hiddenEncoder = structuredClone(state.config.encoder);
       }
-      
-      // Truncate buttons array and disable encoder
       newState.config = {
         ...state.config,
-        device: 'mini6',
-        buttons: state.config.buttons.slice(0, 6),
-        encoder: state.config.encoder ? { ...state.config.encoder, enabled: false } : undefined,
+        device: deviceType,
+        buttons: state.config.buttons.slice(0, targetCount),
+        encoder: !DEVICE_HAS_ENCODER[deviceType] && state.config.encoder
+          ? { ...state.config.encoder, enabled: false }
+          : state.config.encoder,
       };
     }
-    
-    // Switching TO STD10: restore preserved features
-    else if (deviceType === 'std10' && currentDevice === 'mini6') {
-      // Ensure we have exactly 6 Mini6 buttons before appending 7-10
-      const mini6Buttons = state.config.buttons.slice(0, 6);
-      while (mini6Buttons.length < 6) {
-        mini6Buttons.push(createDefaultButton(mini6Buttons.length));
+
+    // Switching to a device with more buttons: restore preserved or create defaults
+    else {
+      const buttons = state.config.buttons.slice(0, currentCount);
+      while (buttons.length < currentCount) {
+        buttons.push(createDefaultButton(buttons.length));
       }
-      
+
+      // Restore hidden buttons or create defaults for the extra slots
+      const extra = state._hiddenButtons || createDefaultButtons(currentCount, targetCount - 1);
       newState.config = {
         ...state.config,
-        device: 'std10',
-        buttons: [
-          ...mini6Buttons,
-          ...(state._hiddenButtons || createDefaultButtons(6, 9)),
-        ],
-        encoder: state._hiddenEncoder || state.config.encoder,
+        device: deviceType,
+        buttons: [...buttons, ...extra].slice(0, targetCount),
+        encoder: DEVICE_HAS_ENCODER[deviceType]
+          ? (state._hiddenEncoder || state.config.encoder)
+          : state.config.encoder,
       };
-      
-      // Clear preserved data
+
       delete newState._hiddenButtons;
       delete newState._hiddenEncoder;
     }
-    
-    // First-time Mini6 initialization
-    else if (deviceType === 'mini6' && !currentDevice) {
-      const buttons = state.config.buttons.slice(0, 6);
-      while (buttons.length < 6) {
-        buttons.push(createDefaultButton(buttons.length));
-      }
-      newState.config = {
-        ...state.config,
-        device: 'mini6',
-        buttons,
-        encoder: state.config.encoder ? { ...state.config.encoder, enabled: false } : undefined,
-      };
-    }
-    
-    // First-time STD10 initialization
-    else if (deviceType === 'std10' && !currentDevice) {
-      const buttons = [...state.config.buttons];
-      while (buttons.length < 10) {
-        buttons.push(createDefaultButton(buttons.length));
-      }
-      newState.config = {
-        ...state.config,
-        device: 'std10',
-        buttons,
-      };
-    }
-    
-    // Same device: no-op
-    else {
-      newState.config = { ...state.config, device: deviceType };
-    }
-    
+
     return pushHistory(newState);
   });
 }
