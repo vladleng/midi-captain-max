@@ -6,8 +6,8 @@ Physical layout (as seen from front):
     Bottom: KEY0    (switch index 1, GP11)
 
 LED NeoPixel chain (6 LEDs, 3 per switch):
-    LEDs 0-0:   KEY0 (bottom switch)
-    LEDs 1-1:   KEY1 (top switch)
+    LEDs 0-2:   KEY0 (bottom switch)
+    LEDs 3-5:   KEY1 (top switch)
 
 DIP switches (GP0-GP3) select the active mode/page.
 
