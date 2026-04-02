@@ -12,7 +12,8 @@ LED NeoPixel chain (6 LEDs, 3 per switch):
 DIP switches (GP0-GP3) select the active mode/page.
 
 Note: DUO2 has no encoder, expression pedals, or pixel-addressable display.
-The segmented LCD is not supported by this firmware.
+The 3-digit 7-segment LCD is driven via UART (GP4 TX, GP5 RX, 9600 baud)
+using a proprietary frame protocol: [0xA5, seg1, seg2, seg3, 0x5A] sent 3x.
 """
 
 import board
@@ -60,8 +61,7 @@ EXP1_PIN = None
 EXP2_PIN = None
 BATTERY_PIN = None
 
-# No pixel-addressable display on DUO2
-# (segmented LCD present but not supported)
+# No ST7789 pixel display on DUO2
 TFT_DC_PIN = None
 TFT_CS_PIN = None
 TFT_SCK_PIN = None
@@ -71,3 +71,14 @@ DISPLAY_WIDTH = None
 DISPLAY_HEIGHT = None
 DISPLAY_ROWSTART = None
 DISPLAY_ROTATION = None
+
+# Segmented LCD display (3-digit 7-segment via UART)
+# Protocol: 5-byte frame [0xA5, seg1, seg2, seg3, 0x5A] at 9600 baud
+# Send frame 3x with 40ms inter-frame delay
+SEG_DISPLAY_TX_PIN = board.GP4
+SEG_DISPLAY_RX_PIN = board.GP5
+SEG_DISPLAY_BAUDRATE = 9600
+SEG_DISPLAY_HEADER = 0xA5
+SEG_DISPLAY_FOOTER = 0x5A
+SEG_DISPLAY_DELAY_MS = 40
+SEG_DISPLAY_REPEATS = 3

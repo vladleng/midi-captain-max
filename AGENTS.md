@@ -270,7 +270,7 @@ Device-specific constants live in `firmware/dev/devices/`:
 - `std10.py` — STD10 pin definitions and counts ✅
 - `mini6.py` — Mini6 pin definitions ✅
 - `nano4.py` — NANO4 pin definitions ✅
-- `duo2.py` — DUO2 pin definitions (2 switches, 6 LEDs, no display) ✅
+- `duo2.py` — DUO2 pin definitions (2 switches, 6 LEDs, UART segmented LCD) ✅
 
 ---
 

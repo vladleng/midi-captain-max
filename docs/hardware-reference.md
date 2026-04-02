@@ -288,31 +288,81 @@ Flipping a DIP switch changes its pin from LOW → HIGH.
 - **Chain Order:** KEY0 (bottom) → KEY1 (top)
 - **Per-Switch:** 3 consecutive pixels; KEY0 segments: top → left → right; KEY1 segments: bottom → right → left
 
-### Display
+### Display (Segmented LCD via UART)
 
-**Not a TFT.** The DUO2 uses a segmented LCD display, not an ST7789 pixel-addressable screen. The OEM firmware (`midicaptain2s.mpy`) drives the segmented LCD via an unknown protocol. Our firmware does **not** support the DUO2 display — `HAS_DISPLAY = False`.
+**Not a TFT.** The DUO2 uses a 3-digit 7-segment LCD driven by a separate display controller over UART. This is fundamentally different from the ST7789 pixel displays on STD10/Mini6/NANO4.
 
-No I2C devices were found on any pin pair (no pull-up resistors present). The display driver is likely embedded in the OEM `.mpy` binary.
+**Protocol** (reverse-engineered from OEM `midicaptain2s.mpy` via `duo2_oem_inspect.py`):
+
+| Parameter | Value |
+|-----------|-------|
+| Interface | UART (TX=GP4, RX=GP5) |
+| Baudrate | 9600 |
+| Frame format | `0xA5 <seg1> <seg2> <seg3> 0x5A` (5 bytes) |
+| Transmission | Send frame 3 times with 40ms inter-frame delay |
+| Segment encoding | Standard 7-segment, bit 7 = decimal point |
+
+**7-segment digit encoding** (`digits_hex` from OEM):
+
+| Digit | Hex | Binary (gfedcba) |
+|-------|-----|-------------------|
+| 0 | 0x3F | 0111111 |
+| 1 | 0x06 | 0000110 |
+| 2 | 0x5B | 1011011 |
+| 3 | 0x4F | 1001111 |
+| 4 | 0x66 | 1100110 |
+| 5 | 0x6D | 1101101 |
+| 6 | 0x7D | 1111101 |
+| 7 | 0x07 | 0000111 |
+| 8 | 0x7F | 1111111 |
+| 9 | 0x6F | 1101111 |
+| dash | 0x40 | 1000000 |
+| blank | 0x00 | 0000000 |
+| dp | +0x80 | bit 7 set |
+
+**OEM display patterns** (5-byte frames: header + 3 segments + footer):
+
+| Pattern | Bytes | Meaning |
+|---------|-------|---------|
+| `hex_VER` | `A5 6D 86 06 5A` | "S1.2" (5, 1+dot, 1) |
+| `hex_pc` | `A5 73 39 40 5A` | "PC-" |
+| `hex_cc` | `A5 39 39 40 5A` | "CC-" |
+| `hex_nt` | `A5 37 79 40 5A` | "nt-" |
+| `hex_NA` | `A5 40 40 40 5A` | "---" |
+| `hex_HID` | `A5 76 06 5E 5A` | "HId" |
+
+**Gotchas:**
+- The display controller has its own startup animation and shows "---" by default. No init sequence is needed — just send frames.
+- The frame must be sent 3 times (matching OEM's `DP_SEND1`/`DP_SEND2`/`DP_SEND3` state machine). Sending once may not be reliable.
+- The `0xA5`/`0x5A` header/footer are required — raw segment bytes without framing are ignored.
+- GP5 reads HIGH at idle because it's the display controller's TX line (UART idle = HIGH).
+- Common UART display protocols (TM1637, HT1621, MAX7219) do NOT work — this is a proprietary UART protocol.
+- The protocol was discovered by importing the OEM module in the REPL, interrupting with Ctrl+C, and inspecting `midicaptain2s.uart`, `midicaptain2s.display_buf`, and `midicaptain2s.digits_hex`.
+
+**Firmware status:** `HAS_DISPLAY = False` in `code.py`. UART display support is not yet integrated into the main firmware — display protocol is documented here for future implementation.
 
 ### GPIO Summary
 
 | Pin | Function |
 |-----|----------|
 | GP0-GP3 | DIP switches (strongly pulled LOW by default) |
-| GP5 | Driven HIGH (hardware enable, not user-controllable) |
+| GP4 | Display UART TX (9600 baud) |
+| GP5 | Display UART RX (idle HIGH from display controller) |
 | GP7 | NeoPixels (6 LEDs) |
 | GP9 | KEY1 (top switch) |
 | GP11 | KEY0 (bottom switch) |
+| GP16 | Serial MIDI TX (31250 baud) |
+| GP17 | Serial MIDI RX (31250 baud) |
 
 ### Serial MIDI
 
-Not yet probed, but expected to use the same UART pins as other devices (GP16 TX, GP17 RX, 31250 baud).
+Confirmed from OEM inspection: GP16 TX, GP17 RX, 31250 baud (standard MIDI). Uses `uart2` in OEM firmware.
 
 ### Not Present
 
 - No rotary encoder
 - No expression pedal inputs
-- No ST7789 display (segmented LCD only, not supported)
+- No ST7789 pixel display (segmented LCD only, via UART)
 
 ---
 
