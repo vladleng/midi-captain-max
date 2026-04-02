@@ -16,7 +16,7 @@
 <Accordion title="Buttons ({visibleCount} of {visibleCount})">
   <div class="buttons-list">
     {#each buttons as button, index}
-      {@const isDisabled = deviceType === 'mini6' && index >= 6}
+      {@const isDisabled = (deviceType === 'nano4' && index >= 4) || (deviceType === 'mini6' && index >= 6)}
       <ButtonRow 
         {button}
         {index}

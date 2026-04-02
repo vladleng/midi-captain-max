@@ -109,7 +109,7 @@ echo ""
 if [ ! -d "$MOUNT_POINT" ]; then
     # Build candidate list: well-known defaults + usb_drive_name from local config files
     CANDIDATE_NAMES=("CIRCUITPY" "MIDICAPTAIN")
-    for cfg_file in "$DEV_DIR/config.json" "$DEV_DIR/config-mini6.json"; do
+    for cfg_file in "$DEV_DIR/config.json" "$DEV_DIR/config-mini6.json" "$DEV_DIR/config-nano4.json"; do
         if [ -f "$cfg_file" ]; then
             # Parse usb_drive_name: use jq if available, fall back to grep/sed
             if command -v jq &>/dev/null; then
@@ -236,7 +236,9 @@ echo "🎛️  Device type: $DEVICE_TYPE"
 echo ""
 
 # Select appropriate config file
-if [ "$DEVICE_TYPE" = "mini6" ]; then
+if [ "$DEVICE_TYPE" = "nano4" ]; then
+    CONFIG_FILE="$DEV_DIR/config-nano4.json"
+elif [ "$DEVICE_TYPE" = "mini6" ]; then
     CONFIG_FILE="$DEV_DIR/config-mini6.json"
 else
     CONFIG_FILE="$DEV_DIR/config.json"
@@ -342,9 +344,11 @@ else
     echo "📝 Preserving existing config.json (use --fresh to overwrite)"
 fi
 
-# 4. Deploy device-specific fallback config (reference only)
+# 4. Deploy device-specific fallback configs (reference only)
 rsync -av --checksum --inplace --itemize-changes \
     "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json"
+rsync -av --checksum --inplace --itemize-changes \
+    "$DEV_DIR/config-nano4.json" "$MOUNT_POINT/config-nano4.json"
 
 # 5. code.py LAST (all dependencies are now in place)
 rsync -av --checksum --inplace --itemize-changes \

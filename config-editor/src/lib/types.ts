@@ -8,7 +8,7 @@ export type ButtonMode = 'toggle' | 'momentary';
 export type OffMode = 'dim' | 'off';
 export type MessageType = 'cc' | 'note' | 'pc' | 'pc_inc' | 'pc_dec';
 export type Polarity = 'normal' | 'inverted';
-export type DeviceType = 'std10' | 'mini6';
+export type DeviceType = 'std10' | 'mini6' | 'nano4';
 
 export interface StateOverride {
   cc?: number;

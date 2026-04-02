@@ -87,7 +87,7 @@ def _read_device_from_config():
     try:
         with open("/config.json", "r") as f:
             device = json.load(f).get("device")
-            if device in ("mini6", "std10"):
+            if device in ("nano4", "mini6", "std10"):
                 return device
     except Exception:
         pass
@@ -140,7 +140,17 @@ DETECTED_DEVICE = detect_device_type()
 print(f"Hardware detected: {DETECTED_DEVICE}")
 
 # Now load appropriate device module
-if DETECTED_DEVICE == "mini6":
+if DETECTED_DEVICE == "nano4":
+    from devices.nano4 import (
+        LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
+        TFT_DC_PIN, TFT_CS_PIN, TFT_SCK_PIN, TFT_MOSI_PIN,
+        DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ROWSTART, DISPLAY_ROTATION,
+        ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN
+    )
+    BUTTON_COUNT = 4
+    HAS_ENCODER = False
+    HAS_EXPRESSION = False
+elif DETECTED_DEVICE == "mini6":
     from devices.mini6 import (
         LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
         TFT_DC_PIN, TFT_CS_PIN, TFT_SCK_PIN, TFT_MOSI_PIN,
@@ -431,7 +441,12 @@ button_boxes = []
 # Auto-size button height based on font
 button_height = BUTTON_FONT_HEIGHT + 10  # 10px padding
 
-if BUTTON_COUNT == 6:
+if BUTTON_COUNT == 4:
+    # NANO4: 2 buttons per row, widest spacing
+    button_width = 100
+    button_spacing = 120
+    row_size = 2
+elif BUTTON_COUNT == 6:
     # Mini6: 3 buttons per row, wider spacing
     button_width = 70
     button_spacing = 80
