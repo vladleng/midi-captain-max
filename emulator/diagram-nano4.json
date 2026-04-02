@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "MIDI Captain MAX",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-pi-pico",
+      "id": "pico",
+      "top": 0,
+      "left": 0,
+      "attrs": { "env": "circuitpython-7.3.3" }
+    },
+    { "type": "wokwi-pushbutton", "id": "btn_tl", "top": -80, "left": -40, "attrs": { "label": "TL" } },
+    { "type": "wokwi-pushbutton", "id": "btn_tr", "top": -80, "left": 60, "attrs": { "label": "TR" } },
+    { "type": "wokwi-pushbutton", "id": "btn_bl", "top": 200, "left": -40, "attrs": { "label": "BL" } },
+    { "type": "wokwi-pushbutton", "id": "btn_br", "top": 200, "left": 60, "attrs": { "label": "BR" } },
+    {
+      "type": "wokwi-neopixel",
+      "id": "led0",
+      "top": 80,
+      "left": 300,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    ["pico:GP1", "btn_tl:1.l", "green", []],
+    ["pico:GND.1", "btn_tl:2.l", "black", []],
+    ["pico:GP25", "btn_tr:1.l", "green", []],
+    ["pico:GND.1", "btn_tr:2.l", "black", []],
+    ["pico:GP9", "btn_bl:1.l", "blue", []],
+    ["pico:GND.1", "btn_bl:2.l", "black", []],
+    ["pico:GP10", "btn_br:1.l", "blue", []],
+    ["pico:GND.1", "btn_br:2.l", "black", []],
+    ["pico:GP7", "led0:DIN", "orange", []],
+    ["pico:GND.1", "led0:VSS", "black", []],
+    ["pico:VBUS", "led0:VDD", "red", []]
+  ],
+  "serialMonitor": { "display": "auto" }
+}
