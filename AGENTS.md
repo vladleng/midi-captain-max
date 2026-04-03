@@ -417,7 +417,7 @@ In use, details pending
 
 This firmware is proprietary software. You may use it freely for personal or commercial purposes (performances, recordings, etc.), but ***you may not sell, redistribute modified versions, or bundle it without permission***.
 
-**Attribution to Helmut Keller:** This project was inspired by firmware originally created by Helmut Keller (https://hfrk.de). The original reference code in `firmware/original_helmut/` remains his work, preserved unmodified with his permission:
+**Attribution to Helmut Keller:** This project was inspired by firmware originally created by Helmut Keller (https://www.helmutkelleraudio.de/). The original reference code in `firmware/original_helmut/` remains his work, preserved unmodified with his permission:
 
 > "My code is available on my website only.
 > Yes, you can start your own fork on GitHub
