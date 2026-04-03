@@ -402,12 +402,11 @@ Same protocol as DUO2 — 3-digit 7-segment LCD driven via UART (TX=GP4, RX=GP5,
 
 | Pin | Function |
 |-----|----------|
-| GP0-GP3 | DIP switches (strongly pulled LOW by default) |
+| GP2-GP3 | DIP switches (strongly pulled LOW by default) |
 | GP4 | Display UART TX (9600 baud) |
 | GP5 | Display UART RX (idle HIGH from display controller) |
-| GP7 | NeoPixels (6 LEDs) |
-| GP9 | KEY1 (top switch) |
-| GP11 | KEY0 (bottom switch) |
+| GP7 | NeoPixels (3 LEDs) |
+| GP11 | KEY0 (only switch) |
 | GP16 | Serial MIDI TX (31250 baud) |
 | GP17 | Serial MIDI RX (31250 baud) |
 
@@ -425,7 +424,7 @@ Confirmed from OEM inspection: GP16 TX, GP17 RX, 31250 baud (standard MIDI). Use
 
 ## Boot Behavior
 
-All devices use `boot.py` with a boot switch (GP1 on most devices, GP11 on DUO2):
+All devices use `boot.py` with a boot switch (GP1 on most devices, GP11 on DUO2/ONE1):
 
 ```python
 # If GP1 is True at boot: disable USB drive, remount RW

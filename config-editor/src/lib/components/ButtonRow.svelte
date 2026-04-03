@@ -428,7 +428,7 @@
 
   {#if disabled}
     <div class="disabled-overlay">
-      Not available on Mini6
+      Not available on this device
     </div>
   {/if}
 </div>

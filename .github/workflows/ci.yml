@@ -143,7 +143,7 @@ jobs:
           for f in core/__init__.py core/button.py core/colors.py core/config.py; do
             mpy-cross -O2 "$f" && rm "$f"
           done
-          for f in devices/std10.py devices/mini6.py devices/nano4.py devices/duo2.py; do
+          for f in devices/std10.py devices/mini6.py devices/nano4.py devices/duo2.py devices/one1.py; do
             mpy-cross -O2 "$f" && rm "$f"
           done
           # Remove empty __init__.py (no value as .mpy)

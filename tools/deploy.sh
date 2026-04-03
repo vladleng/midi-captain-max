@@ -6,7 +6,7 @@
 # Usage: ./deploy.sh [options] [mount_point]
 #
 # Options:
-#   --device TYPE   First-time setup for a device type (nano4, mini6, std10).
+#   --device TYPE   First-time setup for a device type (one1, duo2, nano4, mini6, std10).
 #                   Writes the correct config template, installs CircuitPython
 #                   libraries, and deploys firmware. The go-to for new devices.
 #   --reset-config  Overwrite config.json with the device-type template defaults.

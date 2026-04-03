@@ -320,7 +320,7 @@ impl MidiCaptainConfig {
         // Validate encoder if present
         if let Some(ref enc) = self.encoder {
             // Only STD10 supports encoder
-            if self.device == DeviceType::Mini6 || self.device == DeviceType::Nano4 || self.device == DeviceType::Duo2 || self.device == DeviceType::One1 {
+            if self.device != DeviceType::Std10 {
                 errors.push(format!("{:?} does not support encoder", self.device));
             }
             if enc.cc > 127 {
@@ -368,7 +368,7 @@ impl MidiCaptainConfig {
         // Validate expression pedals if present
         if let Some(ref exp) = self.expression {
             // Only STD10 supports expression pedals
-            if self.device == DeviceType::Mini6 || self.device == DeviceType::Nano4 || self.device == DeviceType::Duo2 || self.device == DeviceType::One1 {
+            if self.device != DeviceType::Std10 {
                 errors.push(format!("{:?} does not support expression pedals", self.device));
             }
             if exp.exp1.cc > 127 {
