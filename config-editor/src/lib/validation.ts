@@ -95,7 +95,17 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
   const errors = new Map<string, string>();
   
   // Device-specific validation
-  if (config.device === 'duo2') {
+  if (config.device === 'one1') {
+    if (config.buttons.length > 1) {
+      errors.set('device', 'ONE supports only 1 button');
+    }
+    if (config.encoder?.enabled) {
+      errors.set('encoder.enabled', 'ONE does not support encoder');
+    }
+    if (config.expression?.exp1?.enabled || config.expression?.exp2?.enabled) {
+      errors.set('expression', 'ONE does not support expression pedals');
+    }
+  } else if (config.device === 'duo2') {
     if (config.buttons.length > 2) {
       errors.set('device', 'DUO2 supports only 2 buttons');
     }

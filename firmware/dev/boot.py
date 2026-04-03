@@ -51,13 +51,13 @@ except Exception:
     pass
 
 # Check if user is holding a switch during boot.
-# DUO2 uses GP11 (KEY0) because GP1 is a DIP switch on that device.
+# DUO2/ONE1 use GP11 (KEY0) because GP1 is a DIP switch on those devices.
 # All other devices use GP1 (switch 1).
 # With pull-up: LOW (False) = pressed, HIGH (True) = not pressed.
 boot_switch_pin = board.GP1
 try:
     _device = cfg.get("device", "") if cfg else ""
-    if _device == "duo2":
+    if _device in ("duo2", "one1"):
         boot_switch_pin = board.GP11
 except Exception:
     pass

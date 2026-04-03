@@ -80,7 +80,7 @@ $AllVolumes = Get-CimInstance -ClassName Win32_Volume -ErrorAction SilentlyConti
 
 # Build candidate label list: well-known defaults + usb_drive_name from local config files
 $CandidateLabels = @("CIRCUITPY", "MIDICAPTAIN")
-foreach ($cfgFile in @((Join-Path $DevDir "config.json"), (Join-Path $DevDir "config-mini6.json"))) {
+foreach ($cfgFile in @((Join-Path $DevDir "config.json"), (Join-Path $DevDir "config-one1.json"), (Join-Path $DevDir "config-duo2.json"), (Join-Path $DevDir "config-mini6.json"), (Join-Path $DevDir "config-nano4.json"))) {
     if (Test-Path $cfgFile) {
         try {
             $cfgJson = Get-Content $cfgFile -Raw | ConvertFrom-Json
@@ -205,7 +205,13 @@ Write-Host "Device type: $DeviceType"
 Write-Host ""
 
 # Select appropriate config file
-if ($DeviceType -eq "mini6") {
+if ($DeviceType -eq "one1") {
+    $ConfigFile = Join-Path $DevDir "config-one1.json"
+} elseif ($DeviceType -eq "duo2") {
+    $ConfigFile = Join-Path $DevDir "config-duo2.json"
+} elseif ($DeviceType -eq "nano4") {
+    $ConfigFile = Join-Path $DevDir "config-nano4.json"
+} elseif ($DeviceType -eq "mini6") {
     $ConfigFile = Join-Path $DevDir "config-mini6.json"
 } else {
     $ConfigFile = Join-Path $DevDir "config.json"
@@ -392,9 +398,15 @@ if (-not (Test-Path $configPath) -or $Fresh) {
     Write-Host "Preserving existing config.json (use -Fresh to overwrite)"
 }
 
-# 4. Deploy device-specific fallback config (reference only)
+# 4. Deploy device-specific fallback configs (reference only)
+Write-Host "config-one1.json:" -ForegroundColor Cyan
+Sync-File -Source (Join-Path $DevDir "config-one1.json") -Destination (Join-Path $MountPoint "config-one1.json")
+Write-Host "config-duo2.json:" -ForegroundColor Cyan
+Sync-File -Source (Join-Path $DevDir "config-duo2.json") -Destination (Join-Path $MountPoint "config-duo2.json")
 Write-Host "config-mini6.json:" -ForegroundColor Cyan
 Sync-File -Source (Join-Path $DevDir "config-mini6.json") -Destination (Join-Path $MountPoint "config-mini6.json")
+Write-Host "config-nano4.json:" -ForegroundColor Cyan
+Sync-File -Source (Join-Path $DevDir "config-nano4.json") -Destination (Join-Path $MountPoint "config-nano4.json")
 
 # 5. code.py LAST (all dependencies are now in place)
 Write-Host "code.py:" -ForegroundColor Cyan

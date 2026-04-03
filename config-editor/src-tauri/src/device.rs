@@ -26,7 +26,7 @@ pub fn is_midi_captain_config(config_path: &std::path::Path) -> bool {
     }
     let Ok(contents) = std::fs::read_to_string(config_path) else { return false };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else { return false };
-    matches!(value.get("device").and_then(|v| v.as_str()), Some("std10") | Some("mini6") | Some("nano4") | Some("duo2"))
+    matches!(value.get("device").and_then(|v| v.as_str()), Some("std10") | Some("mini6") | Some("nano4") | Some("duo2") | Some("one1"))
 }
 
 /// Parse a config.json and return the explicitly declared `usb_drive_name` if set,
@@ -42,7 +42,7 @@ pub fn parse_midi_captain_config(config_path: &std::path::Path) -> Option<String
     let contents = std::fs::read_to_string(config_path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&contents).ok()?;
     let device = value.get("device").and_then(|v| v.as_str())?;
-    if device != "std10" && device != "mini6" && device != "nano4" && device != "duo2" {
+    if device != "std10" && device != "mini6" && device != "nano4" && device != "duo2" && device != "one1" {
         return None;
     }
     // Return usb_drive_name only if explicitly set — no default fallback

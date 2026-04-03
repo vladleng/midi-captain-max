@@ -14,6 +14,7 @@ Hardware Variants:
 - Mini6: 6 switches, ST7789 display, 18 NeoPixels
 - NANO4: 4 switches, ST7789 display, 12 NeoPixels
 - DUO2: 2 switches, segmented LCD (no display support), 6 NeoPixels
+- ONE1: 1 switch, segmented LCD (no display support), 3 NeoPixels
 
 Author: Max Cascone (based on work by Helmut Keller)
 Date: 2026-01-27
@@ -79,12 +80,12 @@ FONT_SIZE_MAP = {
 def _read_device_from_config():
     """Quick config.json read for just the device field.
 
-    Returns "duo2", "nano4", "mini6", "std10", or None if not found/invalid.
+    Returns "one1", "duo2", "nano4", "mini6", "std10", or None if not found/invalid.
     """
     try:
         with open("/config.json", "r") as f:
             device = json.load(f).get("device")
-            if device in ("duo2", "nano4", "mini6", "std10"):
+            if device in ("one1", "duo2", "nano4", "mini6", "std10"):
                 return device
     except Exception:
         pass
@@ -137,7 +138,19 @@ DETECTED_DEVICE = detect_device_type()
 print(f"Hardware detected: {DETECTED_DEVICE}")
 
 # Now load appropriate device module
-if DETECTED_DEVICE == "duo2":
+if DETECTED_DEVICE == "one1":
+    from devices.one1 import (
+        LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
+        ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN,
+        SEG_DISPLAY_TX_PIN, SEG_DISPLAY_RX_PIN, SEG_DISPLAY_BAUDRATE,
+        SEG_DISPLAY_HEADER, SEG_DISPLAY_FOOTER,
+        SEG_DISPLAY_DELAY_MS, SEG_DISPLAY_REPEATS
+    )
+    TFT_DC_PIN = None
+    BUTTON_COUNT = 1
+    HAS_ENCODER = False
+    HAS_EXPRESSION = False
+elif DETECTED_DEVICE == "duo2":
     from devices.duo2 import (
         LED_PIN, LED_COUNT, SWITCH_PINS, switch_to_led,
         ENCODER_A_PIN, ENCODER_B_PIN, EXP1_PIN, EXP2_PIN, BATTERY_PIN,

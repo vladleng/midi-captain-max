@@ -213,6 +213,7 @@ pub enum DeviceType {
     Mini6,
     Nano4,
     Duo2,
+    One1,
 }
 
 /// Display text size settings
@@ -268,6 +269,7 @@ impl MidiCaptainConfig {
             DeviceType::Mini6 => 6,
             DeviceType::Nano4 => 4,
             DeviceType::Duo2 => 2,
+            DeviceType::One1 => 1,
         };
 
         if self.buttons.len() != expected_buttons {
@@ -318,7 +320,7 @@ impl MidiCaptainConfig {
         // Validate encoder if present
         if let Some(ref enc) = self.encoder {
             // Only STD10 supports encoder
-            if self.device == DeviceType::Mini6 || self.device == DeviceType::Nano4 || self.device == DeviceType::Duo2 {
+            if self.device == DeviceType::Mini6 || self.device == DeviceType::Nano4 || self.device == DeviceType::Duo2 || self.device == DeviceType::One1 {
                 errors.push(format!("{:?} does not support encoder", self.device));
             }
             if enc.cc > 127 {
@@ -366,7 +368,7 @@ impl MidiCaptainConfig {
         // Validate expression pedals if present
         if let Some(ref exp) = self.expression {
             // Only STD10 supports expression pedals
-            if self.device == DeviceType::Mini6 || self.device == DeviceType::Nano4 || self.device == DeviceType::Duo2 {
+            if self.device == DeviceType::Mini6 || self.device == DeviceType::Nano4 || self.device == DeviceType::Duo2 || self.device == DeviceType::One1 {
                 errors.push(format!("{:?} does not support expression pedals", self.device));
             }
             if exp.exp1.cc > 127 {

@@ -240,6 +240,7 @@ function createDefaultButtons(startIndex: number, endIndex: number): ButtonConfi
 
 // Button count per device type
 const DEVICE_BUTTON_COUNT: Record<DeviceType, number> = {
+  one1: 1,
   duo2: 2,
   nano4: 4,
   mini6: 6,
@@ -248,6 +249,7 @@ const DEVICE_BUTTON_COUNT: Record<DeviceType, number> = {
 
 // Whether a device supports encoder
 const DEVICE_HAS_ENCODER: Record<DeviceType, boolean> = {
+  one1: false,
   duo2: false,
   nano4: false,
   mini6: false,
@@ -256,6 +258,7 @@ const DEVICE_HAS_ENCODER: Record<DeviceType, boolean> = {
 
 // Whether a device supports expression pedals
 export const DEVICE_HAS_EXPRESSION: Record<DeviceType, boolean> = {
+  one1: false,
   duo2: false,
   nano4: false,
   mini6: false,
@@ -264,6 +267,7 @@ export const DEVICE_HAS_EXPRESSION: Record<DeviceType, boolean> = {
 
 // Whether a device has a TFT display (for display settings)
 export const DEVICE_HAS_TFT: Record<DeviceType, boolean> = {
+  one1: false,
   duo2: false,
   nano4: true,
   mini6: true,

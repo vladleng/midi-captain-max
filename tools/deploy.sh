@@ -74,7 +74,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Valid device types
-VALID_DEVICES="duo2 nano4 mini6 std10"
+VALID_DEVICES="one1 duo2 nano4 mini6 std10"
 
 # Parse arguments
 ARGS=("$@")
@@ -152,7 +152,7 @@ echo ""
 if [ ! -d "$MOUNT_POINT" ]; then
     # Build candidate list: well-known defaults + usb_drive_name from local config files
     CANDIDATE_NAMES=("CIRCUITPY" "MIDICAPTAIN")
-    for cfg_file in "$DEV_DIR/config.json" "$DEV_DIR/config-duo2.json" "$DEV_DIR/config-mini6.json" "$DEV_DIR/config-nano4.json"; do
+    for cfg_file in "$DEV_DIR/config.json" "$DEV_DIR/config-one1.json" "$DEV_DIR/config-duo2.json" "$DEV_DIR/config-mini6.json" "$DEV_DIR/config-nano4.json"; do
         if [ -f "$cfg_file" ]; then
             # Parse usb_drive_name: use jq if available, fall back to grep/sed
             if command -v jq &>/dev/null; then
@@ -285,7 +285,9 @@ echo "🎛️  Device type: $DEVICE_TYPE"
 echo ""
 
 # Select appropriate config file
-if [ "$DEVICE_TYPE" = "duo2" ]; then
+if [ "$DEVICE_TYPE" = "one1" ]; then
+    CONFIG_FILE="$DEV_DIR/config-one1.json"
+elif [ "$DEVICE_TYPE" = "duo2" ]; then
     CONFIG_FILE="$DEV_DIR/config-duo2.json"
 elif [ "$DEVICE_TYPE" = "nano4" ]; then
     CONFIG_FILE="$DEV_DIR/config-nano4.json"
@@ -410,6 +412,8 @@ if [ "$WRITE_CONFIG" = true ]; then
 fi
 
 # 4. Deploy device-specific fallback configs (reference only)
+rsync -av --checksum --inplace --itemize-changes \
+    "$DEV_DIR/config-one1.json" "$MOUNT_POINT/config-one1.json"
 rsync -av --checksum --inplace --itemize-changes \
     "$DEV_DIR/config-duo2.json" "$MOUNT_POINT/config-duo2.json"
 rsync -av --checksum --inplace --itemize-changes \

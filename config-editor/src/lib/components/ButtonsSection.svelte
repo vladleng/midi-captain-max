@@ -6,6 +6,7 @@
 
   // Device-specific button names (default: "Button 1", "Button 2", etc.)
   const DEVICE_BUTTON_NAMES: Partial<Record<DeviceType, string[]>> = {
+    one1: ['KEY0'],
     duo2: ['KEY0', 'KEY1'],
   };
 
@@ -23,7 +24,7 @@
 <Accordion title="Buttons ({visibleCount} of {visibleCount})">
   <div class="buttons-list">
     {#each buttons as button, index}
-      {@const isDisabled = (deviceType === 'duo2' && index >= 2) || (deviceType === 'nano4' && index >= 4) || (deviceType === 'mini6' && index >= 6)}
+      {@const isDisabled = (deviceType === 'one1' && index >= 1) || (deviceType === 'duo2' && index >= 2) || (deviceType === 'nano4' && index >= 4) || (deviceType === 'mini6' && index >= 6)}
       <ButtonRow
         {button}
         {index}

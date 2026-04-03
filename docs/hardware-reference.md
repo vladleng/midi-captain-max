@@ -1,7 +1,7 @@
 # MIDI Captain Hardware Reference
 
-> **Last Updated:** April 2, 2026
-> **Verified On:** STD10, Mini6, NANO4, and DUO2 hardware with CircuitPython 7.3.1
+> **Last Updated:** April 3, 2026
+> **Verified On:** STD10, Mini6, NANO4, DUO2, and ONE hardware with CircuitPython 7.3.1
 
 This document contains verified hardware specifications for Paint Audio MIDI Captain devices.
 For historical context on how these were discovered, see [midicaptain_reverse_engineering_handoff.md](midicaptain_reverse_engineering_handoff.md).
@@ -16,6 +16,7 @@ The firmware automatically detects which device it's running on by probing hardw
 - **Mini6**: Uses unusual pins (board.LED, board.VBUS_SENSE) for switches
 - **NANO4**: 4 switches using a subset of STD10/Mini6 pins (GP1, board.LED, GP9, GP10)
 - **DUO2**: 2 switches (GP11, GP9), 4 DIP switches (GP0-GP3), segmented LCD (no ST7789)
+- **ONE1**: 1 switch (GP11), 2 DIP switches (GP2-GP3), segmented LCD (no ST7789)
 
 Detection happens before config loading, so the same `code.py` works on all devices.
 
@@ -24,7 +25,7 @@ Detection happens before config loading, so the same `code.py` works on all devi
 - **`config.json`** — User configuration (optional). If present, always used.
 - **Built-in defaults** — If no config.json, firmware uses basic numbered buttons matching detected device's button count.
 
-The `config-duo2.json`, `config-mini6.json`, and `config-nano4.json` files in the repo are templates/examples for DUO2, Mini6, and NANO4 users to copy to their device as `config.json`.
+The `config-one1.json`, `config-duo2.json`, `config-mini6.json`, and `config-nano4.json` files in the repo are templates/examples for ONE, DUO2, Mini6, and NANO4 users to copy to their device as `config.json`.
 
 ---
 
@@ -340,6 +341,62 @@ Flipping a DIP switch changes its pin from LOW → HIGH.
 - The protocol was discovered by importing the OEM module in the REPL, interrupting with Ctrl+C, and inspecting `midicaptain2s.uart`, `midicaptain2s.display_buf`, and `midicaptain2s.digits_hex`.
 
 **Firmware status:** Integrated. `HAS_SEG_DISPLAY = True` (derived from `SEG_DISPLAY_TX_PIN`) enables the UART display via the `update_status()` abstraction, which extracts the last number from status text and sends it to the 3-digit LCD.
+
+---
+
+## ONE1 (1-Switch)
+
+> **Verified:** April 3, 2026 — probed on physical ONE hardware using pin scanner, NeoPixel probe, and DIP switch probe scripts (`firmware/dev/experiments/one1_probe.py`, `one1_led_probe.py`, `one1_dip_probe.py`).
+
+### Physical Layout
+
+```
+┌─────────────────────────┐
+│     [Segmented LCD]     │
+├─────────────────────────┤
+│                         │
+│         ┌───┐           │
+│         │K0 │           │
+│         └───┘           │
+│                         │
+│       DIP: [1][2]       │
+└─────────────────────────┘
+```
+
+### Switch Mapping
+
+| Position | GPIO Pin | Notes |
+|----------|----------|-------|
+| KEY0 | GP11 | Also used as boot mode pin on ONE1 |
+
+**Connector:** USB-C (same as DUO2).
+
+### DIP Switches
+
+2 DIP switches for mode/page selection:
+
+| DIP | GPIO Pin | Default State |
+|-----|----------|---------------|
+| 1 | GP2 | LOW (closed) |
+| 2 | GP3 | LOW (closed) |
+
+Flipping a DIP switch changes its pin from LOW → HIGH.
+
+### NeoPixels
+
+- **Pin:** GP7 (same as all other devices)
+- **Count:** 3 (3 LEDs for the single switch)
+- **Chain Order:** LEDs 0-2 map to KEY0
+
+### Display (Segmented LCD via UART)
+
+Same protocol as DUO2 — 3-digit 7-segment LCD driven via UART (TX=GP4, RX=GP5, 9600 baud). See the DUO2 section above for full protocol details.
+
+### Other Hardware
+
+- No encoder
+- No expression pedal inputs
+- OEM firmware module: `midicaptain1s.mpy` (compiled, "1s" = 1 switch)
 
 ### GPIO Summary
 
