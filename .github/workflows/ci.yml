@@ -105,6 +105,11 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: config-editor/src-tauri
+
       - name: Run Rust tests
         working-directory: config-editor/src-tauri
         run: cargo test
@@ -214,6 +219,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: config-editor/src-tauri
 
       - name: Import code signing certificate
         env:
@@ -326,6 +336,11 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: config-editor/src-tauri
 
       - name: Install frontend dependencies
         run: |
