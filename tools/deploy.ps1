@@ -6,32 +6,44 @@
     Works from both development repository and distributed firmware package.
     PowerShell equivalent of deploy.sh for Windows users.
 
+.PARAMETER Device
+    First-time setup for a device type (one1, duo2, nano4, mini6, std10).
+    Writes the correct config template, installs CircuitPython libraries,
+    and deploys firmware. The go-to for new devices.
+
+.PARAMETER ResetConfig
+    Overwrite config.json with the device-type template defaults.
+    Does not reinstall libraries.
+
 .PARAMETER Install
-    Full install: check/install libraries first
+    Check/install CircuitPython libraries without touching config.
 
 .PARAMETER LibsOnly
-    Only install libraries (no firmware copy)
+    Only install libraries (no firmware copy).
 
 .PARAMETER Eject
-    Eject device after deploy (forces clean reload)
+    Eject device after deploy (forces clean reload).
 
 .PARAMETER Fresh
-    Overwrite config.json even if it exists
+    Deprecated alias for -ResetConfig.
 
 .PARAMETER MountPoint
     Drive letter or path of the CIRCUITPY device (e.g. D:\)
 
 .EXAMPLE
-    .\deploy.ps1                          # Quick deploy
-    .\deploy.ps1 -Install                 # Full install with libraries
+    .\deploy.ps1                          # Quick deploy (sync firmware only)
+    .\deploy.ps1 -Device nano4           # First-time NANO4 setup (config + libs + firmware)
+    .\deploy.ps1 -ResetConfig            # Reset config.json to template defaults
+    .\deploy.ps1 -Install                 # Re-check/install libraries
     .\deploy.ps1 -LibsOnly               # Just install CircuitPython libs
     .\deploy.ps1 -Eject                   # Deploy + eject (clean disconnect)
-    .\deploy.ps1 -Fresh                   # Deploy + overwrite config
     .\deploy.ps1 -MountPoint E:\          # Custom mount point
 #>
 
 [CmdletBinding()]
 param(
+    [string]$Device,
+    [switch]$ResetConfig,
     [switch]$Install,
     [switch]$LibsOnly,
     [switch]$Eject,
@@ -40,6 +52,26 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Valid device types
+$ValidDevices = @("one1", "duo2", "nano4", "mini6", "std10")
+
+# Handle -Fresh as deprecated alias for -ResetConfig
+if ($Fresh) {
+    Write-Host "WARNING: -Fresh is deprecated, use -ResetConfig" -ForegroundColor Yellow
+    $ResetConfig = $true
+}
+
+# Validate -Device parameter
+if ($Device) {
+    if ($ValidDevices -notcontains $Device) {
+        Write-Host "ERROR: Unknown device type: $Device" -ForegroundColor Red
+        Write-Host "Valid types: $($ValidDevices -join ', ')"
+        exit 1
+    }
+    # -Device implies -Install (libraries) and config write
+    $Install = $true
+}
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
@@ -143,14 +175,16 @@ if ($Install) {
     Write-Host "circup available" -ForegroundColor Green
 
     # Install each library
+    # --path: target the device mount point
+    # --allow-unsupported: we target CP 7.x which circup considers EOL
     foreach ($lib in $RequiredLibs) {
         Write-Host "  Installing $lib... " -NoNewline
-        $result = & circup install $lib --py 2>&1
+        $result = & circup --path $MountPoint --allow-unsupported install $lib --py 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host "done" -ForegroundColor Green
         } else {
             # Try without --py flag for compiled libs
-            $result = & circup install $lib 2>&1
+            $result = & circup --path $MountPoint --allow-unsupported install $lib 2>&1
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "done" -ForegroundColor Green
             } else {
@@ -177,10 +211,13 @@ if ($Context -eq "dev") {
     Write-Host "Mode: Distribution package"
 }
 
-# Detect device type from existing config on device, or by volume label
+# Detect device type: -Device flag > existing config on device > fallback std10
 $DeviceType = ""
 $configPath = Join-Path $MountPoint "config.json"
-if (Test-Path $configPath) {
+if ($Device) {
+    $DeviceType = $Device
+    Write-Host "Device type set via -Device: $DeviceType"
+} elseif (Test-Path $configPath) {
     try {
         $configContent = Get-Content $configPath -Raw | ConvertFrom-Json
         if ($configContent.device) {
@@ -191,14 +228,10 @@ if (Test-Path $configPath) {
     }
 }
 
-# Fallback: use volume label as heuristic
+# Fallback: cannot determine device type without a config; default to std10
 if (-not $DeviceType) {
-    $vol = $AllVolumes | Where-Object { $_.DriveLetter -eq ($MountPoint.TrimEnd('\')) -or $_.Name -eq $MountPoint }
-    if ($vol -and $vol.Label -eq "MIDICAPTAIN") {
-        $DeviceType = "mini6"
-    } else {
-        $DeviceType = "std10"
-    }
+    $DeviceType = "std10"
+    Write-Host "WARNING: No device type detected - defaulting to std10. Use -Device TYPE to override." -ForegroundColor Yellow
 }
 
 Write-Host "Device type: $DeviceType"
@@ -382,20 +415,34 @@ Sync-Directory -Source (Join-Path $DevDir "lib") -Destination (Join-Path $MountP
 # Drive letter for filesystem flush (used after all writes complete)
 $driveLetter = $MountPoint.TrimEnd('\')
 
-# 3. Deploy config ONLY if it doesn't exist (preserve user customizations)
-if (-not (Test-Path $configPath) -or $Fresh) {
-    if ($Fresh -and (Test-Path $configPath)) {
-        Write-Host "Overwriting config.json with fresh default (--Fresh mode)..."
+# 3. Deploy config
+# -Device: always write config (first-time setup for this device type)
+# -ResetConfig: overwrite existing config with template defaults
+# No flag: only write config if one doesn't exist yet (preserve user customizations)
+$WriteConfig = $false
+if ($Device) {
+    $WriteConfig = $true
+    if (Test-Path $configPath) {
+        Write-Host "Writing config.json for $DeviceType (-Device mode)..."
     } else {
-        Write-Host "Installing default config.json (device-specific)..."
+        Write-Host "Installing config.json for $DeviceType..."
     }
+} elseif ($ResetConfig) {
+    $WriteConfig = $true
+    Write-Host "Resetting config.json to $DeviceType template defaults (-ResetConfig)..."
+} elseif (-not (Test-Path $configPath)) {
+    $WriteConfig = $true
+    Write-Host "Installing default config.json (device-specific)..."
+} else {
+    Write-Host "Preserving existing config.json (use -ResetConfig to overwrite)"
+}
+
+if ($WriteConfig) {
     if (Test-Path $ConfigFile) {
         Sync-File -Source $ConfigFile -Destination $configPath
     } else {
         Sync-File -Source (Join-Path $DevDir "config.json") -Destination $configPath
     }
-} else {
-    Write-Host "Preserving existing config.json (use -Fresh to overwrite)"
 }
 
 # 4. Deploy device-specific fallback configs (reference only)
