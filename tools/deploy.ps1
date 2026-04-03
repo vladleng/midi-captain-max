@@ -42,6 +42,7 @@
 
 [CmdletBinding()]
 param(
+    [ValidateSet("one1", "duo2", "nano4", "mini6", "std10")]
     [string]$Device,
     [switch]$ResetConfig,
     [switch]$Install,
@@ -53,23 +54,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Valid device types
-$ValidDevices = @("one1", "duo2", "nano4", "mini6", "std10")
-
 # Handle -Fresh as deprecated alias for -ResetConfig
 if ($Fresh) {
     Write-Host "WARNING: -Fresh is deprecated, use -ResetConfig" -ForegroundColor Yellow
     $ResetConfig = $true
 }
 
-# Validate -Device parameter
+# -Device implies -Install (libraries) and config write
 if ($Device) {
-    if ($ValidDevices -notcontains $Device) {
-        Write-Host "ERROR: Unknown device type: $Device" -ForegroundColor Red
-        Write-Host "Valid types: $($ValidDevices -join ', ')"
-        exit 1
-    }
-    # -Device implies -Install (libraries) and config write
     $Install = $true
 }
 
@@ -112,7 +104,14 @@ $AllVolumes = Get-CimInstance -ClassName Win32_Volume -ErrorAction SilentlyConti
 
 # Build candidate label list: well-known defaults + usb_drive_name from local config files
 $CandidateLabels = @("CIRCUITPY", "MIDICAPTAIN")
-foreach ($cfgFile in @((Join-Path $DevDir "config.json"), (Join-Path $DevDir "config-one1.json"), (Join-Path $DevDir "config-duo2.json"), (Join-Path $DevDir "config-mini6.json"), (Join-Path $DevDir "config-nano4.json"))) {
+$cfgFiles = @(
+    (Join-Path $DevDir "config.json"),
+    (Join-Path $DevDir "config-one1.json"),
+    (Join-Path $DevDir "config-duo2.json"),
+    (Join-Path $DevDir "config-mini6.json"),
+    (Join-Path $DevDir "config-nano4.json")
+)
+foreach ($cfgFile in $cfgFiles) {
     if (Test-Path $cfgFile) {
         try {
             $cfgJson = Get-Content $cfgFile -Raw | ConvertFrom-Json
