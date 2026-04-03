@@ -455,6 +455,37 @@ mod tests {
         assert!(config.encoder.is_none());
     }
 
+    #[test]
+    fn test_deserialize_duo2_config() {
+        let json = r#"{
+            "device": "duo2",
+            "buttons": [
+                {"label": "BTN1", "cc": 20, "color": "green"},
+                {"label": "BTN2", "cc": 21, "color": "blue"}
+            ]
+        }"#;
+
+        let config: MidiCaptainConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.device, DeviceType::Duo2);
+        assert_eq!(config.buttons.len(), 2);
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_deserialize_one1_config() {
+        let json = r#"{
+            "device": "one1",
+            "buttons": [
+                {"label": "BTN1", "cc": 20, "color": "green"}
+            ]
+        }"#;
+
+        let config: MidiCaptainConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.device, DeviceType::One1);
+        assert_eq!(config.buttons.len(), 1);
+        assert!(config.validate().is_ok());
+    }
+
     /// Round-trip: fields present in input JSON must survive serialize → deserialize.
     /// This class of test would have caught the missing-field bug (serde silently drops
     /// unknown fields during deserialization, so re-serializing strips them).

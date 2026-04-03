@@ -16,7 +16,7 @@ use std::collections::HashSet;
 const DEVICE_VOLUMES: &[&str] = &["CIRCUITPY", "MIDICAPTAIN"];
 
 /// Check if a path contains a recognizable MIDI Captain config.json by
-/// looking for the "device" key with value "std10", "mini6", or "nano4".
+/// looking for the "device" key with a known device type value.
 ///
 /// Used as a fallback when the volume name is not in `DEVICE_VOLUMES` —
 /// i.e., the user has configured a custom `usb_drive_name` in their config.
@@ -159,7 +159,7 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
 /// Accepts:
 /// 1. Volumes with a known name (CIRCUITPY, MIDICAPTAIN), or
 /// 2. Volumes whose config.json identifies as a MIDI Captain device
-///    (has `"device": "std10"`, `"mini6"`, `"nano4"`, or `"duo2"`).
+///    (has a known `"device"` value: `"std10"`, `"mini6"`, `"nano4"`, `"duo2"`, or `"one1"`).
 ///    This covers user-renamed drives (e.g. renamed in Finder) where the
 ///    volume name no longer matches the default "MIDICAPTAIN".
 fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {
@@ -463,6 +463,22 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("config.json");
         std::fs::write(&path, r#"{"device": "mini6", "buttons": []}"#).unwrap();
+        assert!(is_midi_captain_config(&path));
+    }
+
+    #[test]
+    fn test_is_midi_captain_config_duo2() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{"device": "duo2", "buttons": []}"#).unwrap();
+        assert!(is_midi_captain_config(&path));
+    }
+
+    #[test]
+    fn test_is_midi_captain_config_one1() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{"device": "one1", "buttons": []}"#).unwrap();
         assert!(is_midi_captain_config(&path));
     }
 
