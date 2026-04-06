@@ -31,8 +31,18 @@ jobs:
         id: version
         run: |
           VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
-          # Strip 'v' prefix and commit-distance suffix for semver (e.g. v1.5.0-11-gabc1234 → 1.5.0)
-          SEMVER=$(echo "$VERSION" | sed 's/^v//' | sed 's/-[0-9]*-g[a-f0-9]*$//')
+          # Build a WiX-compatible version: up to 4 numeric parts (each 0-65535).
+          # v1.8.0-rc1 → 1.8.0.1, v1.5.0-11-gabc1234 → 1.5.0.11, v1.8.0 → 1.8.0
+          CLEAN=$(echo "$VERSION" | sed 's/^v//')
+          BASE=$(echo "$CLEAN" | sed 's/-.*//')           # 1.8.0
+          SUFFIX=$(echo "$CLEAN" | sed -n 's/^[^-]*-//p') # rc1, 11-gabc1234, or empty
+          # Extract first number from suffix: rc1→1, rc12→12, 11-gabc1234→11
+          BUILD=$(echo "$SUFFIX" | sed -n 's/[^0-9]*\([0-9]\{1,\}\).*/\1/p')
+          if [ -n "$BUILD" ]; then
+            SEMVER="${BASE}.${BUILD}"
+          else
+            SEMVER="${BASE}"
+          fi
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "SEMVER=${SEMVER}" >> $GITHUB_OUTPUT
           echo "Building version: \`$VERSION\` (semver: \`$SEMVER\`)" >> $GITHUB_STEP_SUMMARY
