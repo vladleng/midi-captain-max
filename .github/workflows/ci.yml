@@ -31,18 +31,9 @@ jobs:
         id: version
         run: |
           VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
-          # Build a WiX-compatible version: up to 4 numeric parts (each 0-65535).
-          # v1.8.0-rc1 → 1.8.0.1, v1.5.0-11-gabc1234 → 1.5.0.11, v1.8.0 → 1.8.0
-          CLEAN=$(echo "$VERSION" | sed 's/^v//')
-          BASE=$(echo "$CLEAN" | sed 's/-.*//')           # 1.8.0
-          SUFFIX=$(echo "$CLEAN" | sed -n 's/^[^-]*-//p') # rc1, 11-gabc1234, or empty
-          # Extract first number from suffix: rc1→1, rc12→12, 11-gabc1234→11
-          BUILD=$(echo "$SUFFIX" | sed -n 's/[^0-9]*\([0-9]\{1,\}\).*/\1/p')
-          if [ -n "$BUILD" ]; then
-            SEMVER="${BASE}.${BUILD}"
-          else
-            SEMVER="${BASE}"
-          fi
+          # Strip 'v' prefix and git hash suffix, keep distance number for pre-release info
+          # v1.8.0-rc1 → 1.8.0-rc1, v1.5.0-11-gabc1234 → 1.5.0-11, v1.8.0 → 1.8.0
+          SEMVER=$(echo "$VERSION" | sed 's/^v//' | sed 's/-g[a-f0-9]*$//')
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "SEMVER=${SEMVER}" >> $GITHUB_OUTPUT
           echo "Building version: \`$VERSION\` (semver: \`$SEMVER\`)" >> $GITHUB_STEP_SUMMARY
@@ -357,10 +348,21 @@ jobs:
           cd config-editor
           npm install
 
+      - name: Compute WiX-safe version
+        id: wix-version
+        shell: bash
+        run: |
+          SEMVER="${{ needs.lint.outputs.semver }}"
+          # WiX rejects non-numeric pre-release identifiers (e.g. 1.8.0-rc1).
+          # Convert to numeric-only pre-release: 1.8.0-rc1 → 1.8.0-1
+          WIX_SEMVER=$(echo "$SEMVER" | sed 's/-[a-zA-Z.]*/\-/')
+          echo "SEMVER=${WIX_SEMVER}" >> $GITHUB_OUTPUT
+          echo "WiX version: $SEMVER → $WIX_SEMVER" >> $GITHUB_STEP_SUMMARY
+
       - name: Patch version in config editor
         uses: ./.github/actions/patch-config-editor-version
         with:
-          semver: ${{ needs.lint.outputs.semver }}
+          semver: ${{ steps.wix-version.outputs.SEMVER }}
 
       - name: Build Tauri app
         run: |
