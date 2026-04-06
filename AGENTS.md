@@ -214,6 +214,7 @@ CircuitPython 7.3.1 does NOT support all CPython syntax. These features pass `py
 | `str.isalnum()` | `('A' <= c <= 'Z') or ('0' <= c <= '9')` (after `.upper()`) |
 | `str.isalpha()` | `'A' <= c <= 'Z'` (after `.upper()`) |
 | `str.isdigit()` | `'0' <= c <= '9'` |
+| `bytes.hex()` | `" ".join("%02x" % b for b in data)` |
 
 This is especially dangerous because the error occurs silently in `boot.py` (the `except Exception: pass` fallback swallows it), causing downstream config values like `dev_mode` to never be read.
 
@@ -272,6 +273,40 @@ Device-specific constants live in `firmware/dev/devices/`:
 - `nano4.py` — NANO4 pin definitions ✅
 - `duo2.py` — DUO2 pin definitions (2 switches, 6 LEDs, UART segmented LCD) ✅
 - `one1.py` — ONE1 pin definitions (1 switch, 3 LEDs, UART segmented LCD) ✅
+
+### Reverse Engineering New Device Variants
+
+Follow this sequence (proven on Mini6, NANO4, DUO2, and ONE):
+
+1. **Pin scanner** — scan all GPIO pins as digital inputs with pull-ups, print which go LOW on each switch press
+2. **NeoPixel probe** — light LEDs one at a time on GP7 to find count and chain order, then groups of 3 for per-switch mapping
+3. **DIP switch probe** — if GPIO scan shows pins strongly pulled LOW at baseline, test if flipping DIP switches changes them (DUO2/ONE have DIP switches on GP0-GP3)
+4. **Display discovery** — try ST7789 first, but if it fails (`ImportError` or no response), the device may have a segmented LCD via UART or other protocol. Use OEM module inspection (step 5).
+5. **OEM module inspection** — the most powerful technique for unknown protocols. Write a `code.py` that `import`s the OEM module, catches `KeyboardInterrupt`, then inspects `sys.modules` to dump the module's globals (UART objects with `.baudrate`, display buffers, digit encodings). This revealed the DUO2's proprietary UART display protocol when all common protocols (TM1637, HT1621, MAX7219) failed.
+
+Scripts go in `firmware/dev/experiments/` and get deployed as `code.py` on the device. Don't assume pin mappings or display types from other variants.
+
+### Adding a New Device Variant — Checklist
+
+Update ALL of these files (missed items caused real bugs across DUO2/ONE1 work):
+
+1. `firmware/dev/devices/{device}.py` — pin definitions
+2. `firmware/dev/config-{device}.json` — template config
+3. `firmware/dev/code.py` — device detection allow-list + module import block
+4. `firmware/dev/boot.py` — boot switch pin if different from GP1
+5. `config-editor/src-tauri/src/config.rs` — `DeviceType` enum + button count match + validation
+6. `config-editor/src-tauri/src/device.rs` — `is_midi_captain_config` + `parse_midi_captain_config` match arms
+7. `config-editor/src/lib/types.ts` — `DeviceType` union
+8. `config-editor/src/lib/formStore.ts` — all device capability maps (button count, encoder, expression, TFT)
+9. `config-editor/src/lib/validation.ts` — device-specific constraints
+10. `config-editor/src/lib/components/DeviceSection.svelte` — dropdown + help text
+11. `config-editor/src/lib/components/ButtonsSection.svelte` — `DEVICE_BUTTON_NAMES` + `isDisabled`
+12. `tools/deploy.sh` — `VALID_DEVICES`, config scan loop, config selection, fallback deploy
+13. `.github/workflows/ci.yml` — mpy-cross compilation loop
+14. `docs/hardware-reference.md` — full hardware section
+15. `AGENTS.md` — device lists, file tables, detection docs
+
+**Tip:** Grep for an existing device name (e.g., `duo2`) across the repo to find any additional references.
 
 ---
 
