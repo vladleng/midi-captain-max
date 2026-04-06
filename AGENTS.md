@@ -179,12 +179,12 @@ git push origin v1.0.0-alpha.1
 
 ## CircuitPython Practices
 
-This project uses CircuitPython firmware deployed to hardware devices (NANO4, Mini6, STD10). Always verify changes work with the target hardware constraints. For mpy-cross, use Adafruit's CircuitPython builds, NOT MicroPython pip packages.
+This project uses CircuitPython firmware deployed to hardware devices (ONE, DUO2, NANO4, Mini6, STD10). Always verify changes work with the target hardware constraints. For mpy-cross, use Adafruit's CircuitPython builds, NOT MicroPython pip packages.
 
 - Target **CircuitPython 7.x** (7.3.1 verified on devices)
 - Board identifies as `raspberry_pi_pico` (RP2040 MCU)
 - USB CDC disconnects on reset — use auto-reconnect serial workflows
-- `boot.py` uses GP1 as a mode pin; readable at boot, usable as switch afterward
+- `boot.py` uses GP1 as a mode pin (GP11 on DUO2/ONE1); readable at boot, usable as switch afterward
 - Autoreload typically disabled for performance; enable temporarily for rapid iteration
 
 ### Version Compatibility Notes
@@ -299,6 +299,8 @@ Use `tools/deploy.sh` for dev deploys (handles ordering, sync, and device detect
 Both distribution paths must include the same set of files and write the `VERSION` file. If you add a new directory under `firmware/dev/`, you must add it to **both** of these:
 1. `tools/deploy.sh` — dev deploy via rsync (also writes `VERSION` to device and local `firmware/dev/`)
 2. `.github/workflows/ci.yml` — firmware zip (`build-zip` job, writes `VERSION` from lint job output)
+
+**`tools/deploy.ps1`** is the Windows PowerShell equivalent of `deploy.sh`. Both scripts must stay at feature parity — when adding device types, config files, flags, or changing deploy logic, update **both** scripts. The ps1 uses `[ValidateSet()]` for device type validation and `Sync-File`/`Sync-Directory` helpers instead of rsync.
 
 Device config files (`config*.json`) are included dynamically via glob in both paths, so adding a new device config does not require editing either file.
 
