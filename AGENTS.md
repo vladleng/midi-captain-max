@@ -274,6 +274,30 @@ Device-specific constants live in `firmware/dev/devices/`:
 - `duo2.py` — DUO2 pin definitions (2 switches, 6 LEDs, UART segmented LCD) ✅
 - `one1.py` — ONE1 pin definitions (1 switch, 3 LEDs, UART segmented LCD) ✅
 
+### Adding a New Device Variant — Checklist
+
+When adding a new device, update ALL of these files (copy-paste between variants is the #1 source of bugs — three review rounds caught missed files during DUO2/ONE1):
+
+1. `firmware/dev/devices/{device}.py` — pin definitions, LED count, `switch_to_led()`
+2. `firmware/dev/config-{device}.json` — template config
+3. `firmware/dev/code.py` — device detection allow-list + module import block
+4. `firmware/dev/boot.py` — boot switch pin if different from GP1
+5. `config-editor/src-tauri/src/config.rs` — `DeviceType` enum + button count match + validation (uses `!= Std10` for encoder/expression)
+6. `config-editor/src-tauri/src/device.rs` — `is_midi_captain_config` + `parse_midi_captain_config` match arms + docstrings
+7. `config-editor/src/lib/types.ts` — `DeviceType` union
+8. `config-editor/src/lib/formStore.ts` — all 4 device maps (`DEVICE_BUTTON_COUNT`, `DEVICE_HAS_ENCODER`, `DEVICE_HAS_EXPRESSION`, `DEVICE_HAS_TFT`)
+9. `config-editor/src/lib/validation.ts` — device-specific constraints
+10. `config-editor/src/lib/components/DeviceSection.svelte` — dropdown option + help text
+11. `config-editor/src/lib/components/ButtonsSection.svelte` — `DEVICE_BUTTON_NAMES`
+12. `tools/deploy.sh` — `VALID_DEVICES`, config scan loop, config selection, fallback deploy
+13. `tools/deploy.ps1` — `ValidateSet`, config scan, config selection, fallback deploy (must stay at parity with `.sh`)
+14. `.github/workflows/ci.yml` — mpy-cross compilation loop
+15. `docs/hardware-reference.md` — full hardware section (don't copy-paste GPIO tables from other devices without adjusting!)
+16. `AGENTS.md` — device lists, file tables, detection docs
+17. Rust + device.rs tests — deserialization and `is_midi_captain_config` tests for the new type
+
+**Tip:** grep for an existing device name (e.g., `duo2`) across the repo to catch any additional references.
+
 ### Reverse Engineering New Device Variants
 
 Follow this sequence (proven on Mini6, NANO4, DUO2, and ONE):
