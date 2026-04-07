@@ -2,8 +2,10 @@ name: CI
 
 on:
   push:
-    branches: 
+    branches:
       - "**"
+    tags:
+      - "v*"
     paths-ignore:
       - "**/*.md"
       - docs/**
@@ -31,9 +33,8 @@ jobs:
         id: version
         run: |
           VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
-          # Strip 'v' prefix and git hash suffix, keep distance number for pre-release info
-          # v1.8.0-rc1 → 1.8.0-rc1, v1.5.0-11-gabc1234 → 1.5.0-11, v1.8.0 → 1.8.0
-          SEMVER=$(echo "$VERSION" | sed 's/^v//' | sed 's/-g[a-f0-9]*$//')
+          # Strip 'v' prefix and commit-distance suffix for semver (e.g. v1.5.0-11-gabc1234 → 1.5.0)
+          SEMVER=$(echo "$VERSION" | sed 's/^v//' | sed 's/-[0-9]*-g[a-f0-9]*$//')
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "SEMVER=${SEMVER}" >> $GITHUB_OUTPUT
           echo "Building version: \`$VERSION\` (semver: \`$SEMVER\`)" >> $GITHUB_STEP_SUMMARY

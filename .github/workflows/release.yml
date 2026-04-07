@@ -53,23 +53,43 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           echo "VERSION=$TAG" >> $GITHUB_ENV
 
-      - name: Get CI workflow run ID
+      - name: Wait for CI and get run ID
         id: get-run
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Find the successful CI workflow run for this commit
-          RUN_ID=$(gh api \
-            "/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}&status=success&per_page=1" \
-            --jq '.workflow_runs[0].id')
-          
-          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "::error::No successful CI run found for commit ${{ github.sha }}. Ensure CI passes before tagging."
-            exit 1
-          fi
-          
-          echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "Found CI run: $RUN_ID" >> $GITHUB_STEP_SUMMARY
+          # Wait up to 30 minutes for CI to complete on this commit.
+          # The tag push triggers CI, but it may still be running.
+          SHA="${{ github.sha }}"
+          API_BASE="/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${SHA}&per_page=1"
+
+          for i in $(seq 1 60); do
+            # Check for success
+            RUN_ID=$(gh api "${API_BASE}&status=success" --jq '.workflow_runs[0].id')
+            if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+              echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
+              echo "Found CI run: $RUN_ID" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            fi
+
+            # Check for failure/cancellation — fail fast instead of waiting
+            FAILED_ID=$(gh api "${API_BASE}&status=failure" --jq '.workflow_runs[0].id')
+            CANCELLED_ID=$(gh api "${API_BASE}&status=cancelled" --jq '.workflow_runs[0].id')
+            if [ -n "$FAILED_ID" ] && [ "$FAILED_ID" != "null" ]; then
+              echo "::error::CI run $FAILED_ID failed for commit ${SHA}."
+              exit 1
+            fi
+            if [ -n "$CANCELLED_ID" ] && [ "$CANCELLED_ID" != "null" ]; then
+              echo "::error::CI run $CANCELLED_ID was cancelled for commit ${SHA}."
+              exit 1
+            fi
+
+            echo "Waiting for CI to complete... (attempt $i/60)"
+            sleep 30
+          done
+
+          echo "::error::No successful CI run found for commit ${SHA} after 30 minutes."
+          exit 1
 
       - name: Download all artifacts from CI
         uses: actions/download-artifact@v6
