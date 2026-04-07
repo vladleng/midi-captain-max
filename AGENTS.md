@@ -149,16 +149,27 @@ All code in `firmware/original_helmut/` is authored by **Helmut Keller** and mus
 - `firmware/dev/VERSION` is gitignored (generated artifact)
 
 ### CI/CD (GitHub Actions)
-- **CI workflow** (`.github/workflows/ci.yml`): Runs on push/PR to any branch
+- **CI workflow** (`.github/workflows/ci.yml`): Runs on push to any branch AND on `v*` tag push
   - Lints code with Ruff (ignores E501, F401, E402 for CircuitPython compatibility)
   - Validates Python syntax
   - Writes `VERSION` file into firmware zip from git tag/describe
   - Runs pytest suite (`tests/`)
   - Uses `requirements-dev.txt` for dependencies
-- **Release workflow** (`.github/workflows/release.yml`): Triggered by version tags
-  - Packages `firmware/dev/` into a zip (excludes `experiments/`, `__pycache__/`)
+  - Builds Config Editor for macOS and Windows (Tauri + SvelteKit)
+  - **Tag trigger is critical**: CI must run on tag push so `git describe` sees the tag and bakes the correct version into artifacts. Without this, artifacts get the pre-tag version (e.g., `1.8.0-rc1` instead of `1.8.0`).
+- **Release workflow** (`.github/workflows/release.yml`): Triggered by `v*` tags
+  - Downloads artifacts from the CI run for the same commit (by SHA)
+  - Polls for up to 30 minutes waiting for CI to complete (tag push triggers both workflows simultaneously)
+  - Fails fast if CI fails or is cancelled
   - Creates GitHub Release with artifacts
   - Auto-detects alpha/beta for pre-release flag
+
+#### Version Flow
+- `git describe --tags --always` → strip `v` prefix and commit-distance suffix → SEMVER
+- Examples: `v1.8.0` → `1.8.0`, `v1.8.0-rc1` → `1.8.0-rc1`, `v1.5.0-11-gabc1234` → `1.5.0`
+- macOS build: uses SEMVER as-is (Tauri accepts semver pre-release identifiers like `1.8.0-rc1`)
+- Windows build: WiX MSI rejects non-numeric pre-release identifiers, so a conversion step strips alpha chars: `1.8.0-rc1` → `1.8.0-1`
+- **Tauri v2 requires strict semver** (3-part with optional pre-release) — 4-part versions like `1.8.0.1` are rejected by `tauri.conf.json` parser
 
 To create a release:
 ```bash
@@ -173,7 +184,8 @@ git push origin v1.0.0-alpha.1
 ### Configuration
 - **JSON** for user-facing configuration (MIDI mappings, layouts, device settings)
 - Keep config schema documented and validated
-- Config editor app in `config-editor/` (Tauri + SvelteKit)
+- Config editor app in `config-editor/` (Tauri v2 + SvelteKit)
+- **Build requires `svelte-kit sync`** before `vite build` — generates `.svelte-kit/tsconfig.json`. Without it, esbuild warns about missing tsconfig. The `build` npm script includes this.
 
 ---
 
@@ -253,7 +265,9 @@ For historical context on reverse engineering, see [docs/midicaptain_reverse_eng
 - `busio.UART` is available in CircuitPython 7.x; use `receiver_buffer_size=64` (512 is fine too)
 - Wrap init in `try/except` — if UART is unavailable the firmware must still boot (`midi_serial = None`)
 - The original Helmut firmware had DIN MIDI; the dev rewrite initially dropped it (now restored)
-- **Pattern**: use a `midi_send(msg)` helper that calls both `midi.send(msg)` (USB) and `midi_serial.send(msg)` (DIN), rather than duplicating every send site
+- **Pattern**: use a `midi_send(msg, channel=None)` helper that calls both `midi.send(msg, channel=channel)` (USB) and `midi_serial.send(msg, channel=channel)` (DIN), rather than duplicating every send site
+- **⚠️ adafruit_midi channel API gotcha**: `midi.send(ControlChange(cc, val, channel=X))` does **NOT** work — the library ignores `msg.channel` and always uses `out_channel`. Channel must be passed to `send()`: `midi.send(ControlChange(cc, val), channel=X)`. This caused issue #95 where all MIDI output was stuck on channel 1. The `midi_send()` wrapper must accept and forward `channel`.
+- **`in_channel`**: both USB and serial MIDI objects should use `in_channel=None` (receive all channels) for multi-channel bidirectional sync to work
 - **MIDI Thru**: `handle_midi()` reads both ports; USB→DIN and DIN→USB forwarding happens there; both directions also drive LED/button state via `_process_midi_msg()`
 - **Full bidirectionality**: a hardware device on the DIN port can control Captain LEDs/LCD exactly like a USB DAW host — `_process_midi_msg` is source-agnostic (`source` arg is debug-print only). CC value >63 = ON, ≤63 = OFF (`on_midi_receive` in `button.py`). NoteOn/Off and PC are also handled.
 - **Keytimes caveat**: `on_midi_receive` sets boolean on/off state only — it does not advance the keytime slot. A host can illuminate the correct keytime color but cannot remotely cycle keytime positions.
