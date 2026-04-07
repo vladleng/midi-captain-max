@@ -353,9 +353,17 @@ jobs:
         shell: bash
         run: |
           SEMVER="${{ needs.lint.outputs.semver }}"
-          # WiX rejects non-numeric pre-release identifiers (e.g. 1.8.0-rc1).
-          # Convert to numeric-only pre-release: 1.8.0-rc1 → 1.8.0-1
-          WIX_SEMVER=$(echo "$SEMVER" | sed 's/-[a-zA-Z.]*/\-/')
+          # WiX requires a single numeric pre-release identifier (0-65535).
+          # Extract base version and first number from suffix:
+          # 1.8.0-rc1-6 → 1.8.0-1, 1.8.0-rc1 → 1.8.0-1, 1.5.0-11 → 1.5.0-11
+          BASE=$(echo "$SEMVER" | sed 's/-.*//')
+          SUFFIX=$(echo "$SEMVER" | sed -n 's/^[^-]*-//p')
+          BUILD=$(echo "$SUFFIX" | sed -n 's/[^0-9]*\([0-9]\{1,\}\).*/\1/p')
+          if [ -n "$BUILD" ]; then
+            WIX_SEMVER="${BASE}-${BUILD}"
+          else
+            WIX_SEMVER="${BASE}"
+          fi
           echo "SEMVER=${WIX_SEMVER}" >> $GITHUB_OUTPUT
           echo "WiX version: $SEMVER → $WIX_SEMVER" >> $GITHUB_STEP_SUMMARY
 
