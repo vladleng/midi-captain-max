@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { message } from '@tauri-apps/plugin-dialog';
+  import { message, ask } from '@tauri-apps/plugin-dialog';
   import { getVersion } from '@tauri-apps/api/app';
   import {
     devices, selectedDevice, currentConfigRaw,
@@ -9,7 +9,7 @@
   } from '$lib/stores';
   import {
     scanDevices, startDeviceWatcher, readConfigRaw, writeConfigRaw,
-    onDeviceConnected, onDeviceDisconnected
+    onDeviceConnected, onDeviceDisconnected, restartDevice
   } from '$lib/api';
   import type { DetectedDevice } from '$lib/types';
   import ConfigForm from '$lib/components/ConfigForm.svelte';
@@ -194,12 +194,16 @@
       
       $currentConfigRaw = configJson;
       $hasUnsavedChanges = false;
-      $statusMessage = 'Config saved successfully';
-      
-      await message('Config saved to device successfully!', { 
-        title: 'Success', 
-        kind: 'info' 
-      });
+      $statusMessage = 'Config saved — restart device to apply';
+
+      const shouldRestart = await ask(
+        'Config saved! Restart device to apply changes?',
+        { title: 'Config Saved', kind: 'info', okLabel: 'Restart', cancelLabel: 'Later' }
+      );
+
+      if (shouldRestart) {
+        await doRestartDevice();
+      }
     } catch (e: any) {
       $statusMessage = `Error saving config: ${e.message || e}`;
       await message($statusMessage, { title: 'Error', kind: 'error' });
@@ -236,23 +240,23 @@
     }
   }
   
-  async function resetDevice() {
+  async function doRestartDevice() {
     if (!$selectedDevice) return;
-    
+
     try {
-      await message(
-        'To apply config changes, reset your MIDI Captain device:\n\n' +
-        '1. Unplug the USB cable\n' +
-        '2. Wait 2 seconds\n' +
-        '3. Plug it back in\n\n' +
-        'The device will restart with the new configuration.',
-        { title: 'Reset Device', kind: 'info' }
-      );
-      
-      $statusMessage = 'Waiting for device to reconnect...';
+      await restartDevice($selectedDevice.config_path);
+      $statusMessage = 'Device restarting with new configuration...';
     } catch (e: any) {
-      console.error('Error showing reset dialog:', e);
-      $statusMessage = `Error showing dialog: ${e.message || e}`;
+      console.error('Restart failed:', e);
+      await message(
+        'Could not restart automatically. Please restart your MIDI Captain:\n\n' +
+        '1. Turn off using the power button on the back\n' +
+        '2. Wait a moment\n' +
+        '3. Turn it back on\n\n' +
+        'The device will start up with the new configuration.',
+        { title: 'Manual Restart Needed', kind: 'warning' }
+      );
+      $statusMessage = 'Restart failed — please restart device manually';
     }
   }
   
@@ -335,10 +339,10 @@
       </button>
       <button 
         class="secondary"
-        onclick={resetDevice} 
+        onclick={doRestartDevice}
         disabled={!$selectedDevice || $isLoading}
       >
-        Reset Device
+        Restart Device
       </button>
     </div>
   </footer>

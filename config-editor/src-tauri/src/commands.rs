@@ -4,6 +4,7 @@ use crate::config::MidiCaptainConfig;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tauri::command;
 
 #[cfg(unix)]
@@ -309,6 +310,91 @@ pub fn validate_config(json: String) -> Result<(), ConfigError> {
             details: Some(errors),
         });
     }
+
+    Ok(())
+}
+
+/// Adafruit USB Vendor ID — all MIDI Captain devices use Adafruit CircuitPython boards
+const ADAFRUIT_VID: u16 = 0x239A;
+
+/// Find a CircuitPython serial port by looking for Adafruit VID.
+fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
+    let ports = serialport::available_ports().map_err(|e| ConfigError {
+        message: format!("Failed to enumerate serial ports: {}", e),
+        details: None,
+    })?;
+
+    let adafruit_ports: Vec<_> = ports
+        .iter()
+        .filter(|p| {
+            matches!(
+                &p.port_type,
+                serialport::SerialPortType::UsbPort(info) if info.vid == ADAFRUIT_VID
+            )
+        })
+        .collect();
+
+    match adafruit_ports.len() {
+        0 => Err(ConfigError {
+            message: "No CircuitPython serial port found. Is the device connected?".to_string(),
+            details: None,
+        }),
+        1 => Ok(adafruit_ports[0].port_name.clone()),
+        _ => {
+            // Multiple Adafruit devices — can't determine which one to restart.
+            // Future: correlate by USB serial number.
+            Err(ConfigError {
+                message: format!(
+                    "Found {} CircuitPython devices. Disconnect other devices and try again.",
+                    adafruit_ports.len()
+                ),
+                details: None,
+            })
+        }
+    }
+}
+
+/// Soft-reboot a CircuitPython device by sending Ctrl-C + Ctrl-D over serial.
+///
+/// Ctrl-C interrupts the running program, Ctrl-D triggers a soft reload
+/// that re-reads config.json and restarts code.py. The USB drive stays
+/// mounted throughout — no eject or power cycle needed.
+#[command]
+pub fn restart_device(path: String) -> Result<(), ConfigError> {
+    validate_device_path(&path)?;
+
+    let path_obj = Path::new(&path);
+    verify_device_connected(path_obj)?;
+
+    let serial_port = find_device_serial_port(path_obj)?;
+
+    let mut port = serialport::new(&serial_port, 115200)
+        .timeout(Duration::from_secs(2))
+        .open()
+        .map_err(|e| ConfigError {
+            message: format!("Failed to open serial port {}: {}", serial_port, e),
+            details: None,
+        })?;
+
+    // Ctrl-C: interrupt running program, drop to REPL
+    port.write_all(&[0x03]).map_err(|e| ConfigError {
+        message: format!("Failed to send interrupt: {}", e),
+        details: None,
+    })?;
+
+    // Brief pause so REPL processes the interrupt before we send reload
+    std::thread::sleep(Duration::from_millis(100));
+
+    // Ctrl-D: soft reload — restarts code.py with new config
+    port.write_all(&[0x04]).map_err(|e| ConfigError {
+        message: format!("Failed to send reload: {}", e),
+        details: None,
+    })?;
+
+    port.flush().map_err(|e| ConfigError {
+        message: format!("Failed to flush serial port: {}", e),
+        details: None,
+    })?;
 
     Ok(())
 }
