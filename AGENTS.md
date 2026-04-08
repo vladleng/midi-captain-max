@@ -602,8 +602,16 @@ Save button → saveToDevice()
 | `config-editor/src/lib/components/ButtonsSection.svelte` | Iterates buttons, wires `handleButtonUpdate → updateField` |
 | `config-editor/src/lib/components/DisplaySection.svelte` | Display text size settings |
 | `config-editor/src-tauri/src/config.rs` | Rust config structs + validation; must mirror `types.ts` |
-| `config-editor/src-tauri/src/commands.rs` | Tauri commands: read/write/validate config, path security |
+| `config-editor/src-tauri/src/commands.rs` | Tauri commands: read/write/validate config, restart device, path security |
 | `config-editor/src-tauri/src/device.rs` | USB device detection and watcher (cross-platform) |
+
+### Serial Soft-Reboot
+
+`restart_device` sends Ctrl-C (`0x03`) + Ctrl-D (`0x04`) over serial to trigger a CircuitPython soft reload. The USB drive stays mounted — no eject or power cycle needed.
+
+- **Port discovery**: Filters `serialport::available_ports()` by Adafruit VID (`0x239A`). Currently requires exactly one Adafruit device connected; multi-device support (correlate by USB serial number) is planned.
+- **Thread blocking**: `restart_device` uses `thread::sleep(100ms)` between Ctrl-C and Ctrl-D. This is fine because Tauri commands run on a thread pool. If this ever moves to `async`, the sleep must become `tokio::time::sleep`.
+- **Fallback**: If serial port is unavailable (port busy, Windows permissions, multiple devices), the frontend shows manual restart instructions.
 
 ### Critical: Rust ↔ TypeScript Type Sync
 
