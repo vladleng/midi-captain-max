@@ -483,9 +483,39 @@ fn eject_volume(volume_path: &Path) -> Result<(), ConfigError> {
 }
 
 #[cfg(target_os = "windows")]
-fn eject_volume(_volume_path: &Path) -> Result<(), ConfigError> {
-    Err(ConfigError {
-        message: "Automatic eject is not yet supported on Windows. Please use 'Safely Remove Hardware' in the system tray.".to_string(),
-        details: None,
-    })
+fn eject_volume(volume_path: &Path) -> Result<(), ConfigError> {
+    use std::process::Command;
+
+    // Get drive letter (e.g., "E:" from "E:\")
+    let drive = volume_path
+        .to_str()
+        .and_then(|s| s.get(..2))
+        .ok_or_else(|| ConfigError {
+            message: "Could not determine drive letter".to_string(),
+            details: None,
+        })?;
+
+    // Use PowerShell Shell.Application COM object for safe USB eject
+    let script = format!(
+        "(New-Object -ComObject Shell.Application).Namespace(17).ParseName('{}').InvokeVerb('Eject')",
+        drive
+    );
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &script])
+        .output()
+        .map_err(|e| ConfigError {
+            message: format!("Failed to run PowerShell eject: {}", e),
+            details: None,
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ConfigError {
+            message: format!("Eject failed: {}", stderr.trim()),
+            details: None,
+        });
+    }
+
+    Ok(())
 }
