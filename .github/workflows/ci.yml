@@ -196,7 +196,7 @@ jobs:
           echo "Created: \`dist/midicaptain-firmware-${VERSION}.zip\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload zip artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-zip
           path: dist/*.zip
@@ -308,14 +308,14 @@ jobs:
           echo "✓ DMG notarized and stapled" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: config-editor-dmg
           path: config-editor/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           retention-days: 90
 
       - name: Upload app bundle artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: config-editor-app
           path: config-editor/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
@@ -381,14 +381,14 @@ jobs:
           Get-ChildItem -Path src-tauri\target\release\bundle\ -Recurse
 
       - name: Upload MSI artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: config-editor-msi
           path: config-editor/src-tauri/target/release/bundle/msi/*.msi
           retention-days: 90
 
       - name: Upload NSIS artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: config-editor-nsis
           path: config-editor/src-tauri/target/release/bundle/nsis/*.exe
