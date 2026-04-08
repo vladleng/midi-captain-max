@@ -395,8 +395,8 @@ pub fn restart_device(path: String) -> Result<(), ConfigError> {
         details: None,
     })?;
 
-    // Brief pause so REPL processes the interrupt before we send reload
-    std::thread::sleep(Duration::from_millis(100));
+    // Wait for CircuitPython to stop the program and initialize the REPL
+    std::thread::sleep(Duration::from_millis(500));
 
     // Ctrl-D: soft reload — restarts code.py with new config
     port.write_all(&[0x04]).map_err(|e| ConfigError {
@@ -408,6 +408,9 @@ pub fn restart_device(path: String) -> Result<(), ConfigError> {
         message: format!("Failed to flush serial port: {}", e),
         details: None,
     })?;
+
+    // Brief pause before closing so the byte is fully transmitted
+    std::thread::sleep(Duration::from_millis(100));
 
     Ok(())
 }
