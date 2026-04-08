@@ -347,35 +347,49 @@ echo "🚀 Deploying changed files..."
 # --inplace: minimize file rewrites
 # --itemize-changes: show what changed
 
+# Sync a directory and show clean progress (label + changed files or "(no changes)")
+# Usage: sync_dir LABEL SOURCE DEST [--delete]
+sync_dir() {
+    local label="$1" src="$2" dst="$3" delete_flag=""
+    [ "${4:-}" = "--delete" ] && delete_flag="--delete"
+    echo -e "${BLUE}${label}:${NC}"
+    local output
+    output=$(rsync -a --checksum --inplace --itemize-changes $delete_flag \
+        --exclude='.DS_Store' --exclude='*.pyc' --exclude='__pycache__' \
+        "$src" "$dst" 2>&1)
+    if [ -z "$output" ]; then
+        echo "  (no changes)"
+    else
+        echo "$output" | while IFS= read -r line; do echo "  > $line"; done
+    fi
+}
+
+# Sync a single file and show clean progress
+# Usage: sync_file LABEL SOURCE DEST
+sync_file() {
+    local label="$1" src="$2" dst="$3"
+    echo -e "${BLUE}${label}:${NC}"
+    local output
+    output=$(rsync -a --checksum --inplace --itemize-changes "$src" "$dst" 2>&1)
+    if [ -z "$output" ]; then
+        echo "  (no changes)"
+    else
+        echo "  > $(basename "$src")"
+    fi
+}
+
 # 1. boot.py first (keeps autoreload disabled)
-rsync -av --checksum --inplace --itemize-changes \
-    "$DEV_DIR/boot.py" \
-    "$MOUNT_POINT/"
+sync_file "boot.py" "$DEV_DIR/boot.py" "$MOUNT_POINT/"
 
 # 2. Core modules, device definitions, and fonts
 # --delete removes stale files from the device (e.g. old .py source when
 # deploying compiled .mpy from a package, or old .mpy when deploying .py
 # source from the dev repo). Without --delete, both forms can coexist on
 # the device and CircuitPython may load the wrong one, causing ImportErrors.
-rsync -av --checksum --inplace --itemize-changes --delete \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    "$DEV_DIR/core/" "$MOUNT_POINT/core/"
-
-rsync -av --checksum --inplace --itemize-changes --delete \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    "$DEV_DIR/devices/" "$MOUNT_POINT/devices/"
-
-rsync -av --checksum --inplace --itemize-changes \
-    --exclude='.DS_Store' \
-    "$DEV_DIR/fonts/" "$MOUNT_POINT/fonts/"
-
-rsync -av --checksum --inplace --itemize-changes \
-    --exclude='.DS_Store' \
-    "$DEV_DIR/lib/" "$MOUNT_POINT/lib/"
+sync_dir "core/" "$DEV_DIR/core/" "$MOUNT_POINT/core/" --delete
+sync_dir "devices/" "$DEV_DIR/devices/" "$MOUNT_POINT/devices/" --delete
+sync_dir "fonts/" "$DEV_DIR/fonts/" "$MOUNT_POINT/fonts/"
+sync_dir "lib/" "$DEV_DIR/lib/" "$MOUNT_POINT/lib/"
 
 sync
 
@@ -403,32 +417,20 @@ fi
 
 if [ "$WRITE_CONFIG" = true ]; then
     if [ -f "$CONFIG_FILE" ]; then
-        rsync -av --checksum --inplace --itemize-changes \
-            "$CONFIG_FILE" "$MOUNT_POINT/config.json"
+        sync_file "config.json" "$CONFIG_FILE" "$MOUNT_POINT/config.json"
     else
-        rsync -av --checksum --inplace --itemize-changes \
-            "$DEV_DIR/config.json" "$MOUNT_POINT/config.json"
+        sync_file "config.json" "$DEV_DIR/config.json" "$MOUNT_POINT/config.json"
     fi
 fi
 
 # 4. Deploy device-specific fallback configs (reference only)
-rsync -av --checksum --inplace --itemize-changes \
-    "$DEV_DIR/config-one1.json" "$MOUNT_POINT/config-one1.json"
-rsync -av --checksum --inplace --itemize-changes \
-    "$DEV_DIR/config-duo2.json" "$MOUNT_POINT/config-duo2.json"
-rsync -av --checksum --inplace --itemize-changes \
-    "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json"
-rsync -av --checksum --inplace --itemize-changes \
-    "$DEV_DIR/config-nano4.json" "$MOUNT_POINT/config-nano4.json"
+sync_file "config-one1.json" "$DEV_DIR/config-one1.json" "$MOUNT_POINT/config-one1.json"
+sync_file "config-duo2.json" "$DEV_DIR/config-duo2.json" "$MOUNT_POINT/config-duo2.json"
+sync_file "config-mini6.json" "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json"
+sync_file "config-nano4.json" "$DEV_DIR/config-nano4.json" "$MOUNT_POINT/config-nano4.json"
 
 # 5. code.py LAST (all dependencies are now in place)
-rsync -av --checksum --inplace --itemize-changes \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    --exclude='experiments' \
-    "$DEV_DIR/code.py" \
-    "$MOUNT_POINT/"
+sync_file "code.py" "$DEV_DIR/code.py" "$MOUNT_POINT/"
 
 # 6. Write VERSION file for firmware version display
 # Distributed packages include a pre-built VERSION file written by CI.
