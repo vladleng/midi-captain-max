@@ -53,24 +53,30 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           echo "VERSION=$TAG" >> $GITHUB_ENV
 
-      - name: Find successful CI run for this commit
+      - name: Wait for CI to complete
         id: get-run
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # CI already ran when this commit was pushed to a branch.
-          # Look up the successful run by commit SHA — no polling needed.
+          # Find the CI run triggered by this tag push and wait for it.
           SHA="${{ github.sha }}"
-          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${SHA}&status=success&per_page=1" \
+
+          # Give CI a moment to start
+          sleep 10
+
+          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${SHA}&per_page=1" \
             --jq '.workflow_runs[0].id')
 
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "::error::No successful CI run found for commit ${SHA}. Make sure CI passed before tagging."
+            echo "::error::No CI run found for commit ${SHA}."
             exit 1
           fi
 
+          # Block until the run completes; exits non-zero if it fails
+          gh run watch "$RUN_ID" --exit-status
+
           echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "Found CI run: $RUN_ID" >> $GITHUB_STEP_SUMMARY
+          echo "CI run $RUN_ID completed successfully" >> $GITHUB_STEP_SUMMARY
 
       - name: Download all artifacts from CI
         uses: actions/download-artifact@v6
