@@ -216,6 +216,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
           prerelease:  ${{ steps.header.outputs.PRERELEASE }}
           make_latest: ${{ steps.header.outputs.PRERELEASE != 'true' }}
           files: dist/*
@@ -225,9 +226,11 @@ jobs:
 
       - name: Print Release
         run: |
-          { 
-            echo "Release \`$VERSION\` created successfully!"
+          {
+            echo "## Draft release \`$VERSION\` created"
             echo ""
             echo "Release URL: ${{ steps.create_release.outputs.url }}"
+            echo ""
+            echo "**Next steps:** Download and test the artifacts, then publish the release."
           } >> $GITHUB_STEP_SUMMARY
 
