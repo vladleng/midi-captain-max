@@ -414,3 +414,78 @@ pub fn restart_device(path: String) -> Result<(), ConfigError> {
 
     Ok(())
 }
+
+/// Safely eject/unmount the device volume.
+#[command]
+pub fn eject_device(path: String) -> Result<(), ConfigError> {
+    validate_device_path(&path)?;
+
+    let path_obj = Path::new(&path);
+    verify_device_connected(path_obj)?;
+
+    let volume_path = get_volume_path(path_obj).ok_or_else(|| ConfigError {
+        message: "Could not determine volume path for device".to_string(),
+        details: None,
+    })?;
+
+    eject_volume(&volume_path)
+}
+
+#[cfg(target_os = "macos")]
+fn eject_volume(volume_path: &Path) -> Result<(), ConfigError> {
+    use std::process::Command;
+    let output = Command::new("diskutil")
+        .arg("eject")
+        .arg(volume_path)
+        .output()
+        .map_err(|e| ConfigError {
+            message: format!("Failed to run diskutil eject: {}", e),
+            details: None,
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ConfigError {
+            message: format!("Eject failed: {}", stderr.trim()),
+            details: None,
+        });
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn eject_volume(volume_path: &Path) -> Result<(), ConfigError> {
+    use std::process::Command;
+
+    // Try gio mount first (GNOME/freedesktop, works in user space)
+    if let Ok(output) = Command::new("gio").arg("mount").arg("-u").arg(volume_path).output() {
+        if output.status.success() {
+            return Ok(());
+        }
+    }
+
+    // Fall back to umount (requires permission but works on any Linux)
+    if let Ok(output) = Command::new("umount").arg(volume_path).output() {
+        if output.status.success() {
+            return Ok(());
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ConfigError {
+            message: format!("Could not unmount device: {}", stderr.trim()),
+            details: None,
+        });
+    }
+
+    Err(ConfigError {
+        message: "Could not unmount device: neither gio nor umount is available. Please eject manually.".to_string(),
+        details: None,
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn eject_volume(_volume_path: &Path) -> Result<(), ConfigError> {
+    Err(ConfigError {
+        message: "Automatic eject is not yet supported on Windows. Please use 'Safely Remove Hardware' in the system tray.".to_string(),
+        details: None,
+    })
+}

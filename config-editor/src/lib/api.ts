@@ -29,6 +29,10 @@ export async function restartDevice(path: string): Promise<void> {
   return invoke('restart_device', { path });
 }
 
+export async function ejectDevice(path: string): Promise<void> {
+  return invoke('eject_device', { path });
+}
+
 // Device operations
 export async function scanDevices(): Promise<DetectedDevice[]> {
   return invoke('scan_devices');

@@ -9,7 +9,7 @@
   } from '$lib/stores';
   import {
     scanDevices, startDeviceWatcher, readConfigRaw, writeConfigRaw,
-    onDeviceConnected, onDeviceDisconnected, restartDevice
+    onDeviceConnected, onDeviceDisconnected, restartDevice, ejectDevice
   } from '$lib/api';
   import type { DetectedDevice } from '$lib/types';
   import ConfigForm from '$lib/components/ConfigForm.svelte';
@@ -260,6 +260,44 @@
     }
   }
   
+  async function doEjectDevice() {
+    if (!$selectedDevice) return;
+
+    if ($hasUnsavedChanges) {
+      const proceed = await ask(
+        'You have unsaved changes that will be lost. Eject anyway?',
+        { title: 'Unsaved Changes', kind: 'warning', okLabel: 'Eject', cancelLabel: 'Cancel' }
+      );
+      if (!proceed) return;
+    }
+
+    const ejectedName = $selectedDevice.name;
+
+    try {
+      await ejectDevice($selectedDevice.config_path);
+
+      // Clear state for ejected device — the disconnect watcher will also
+      // fire, but we update immediately to avoid stale UI.
+      $devices = $devices.filter(d => d.config_path !== $selectedDevice!.config_path);
+      $selectedDevice = null;
+      $currentConfigRaw = '';
+      $hasUnsavedChanges = false;
+      $statusMessage = `${ejectedName} ejected safely`;
+
+      // Auto-select another device if one is still connected
+      if ($devices.length > 0) {
+        await selectDevice($devices[0]);
+      }
+    } catch (e: any) {
+      console.error('Eject failed:', e);
+      await message(
+        `Could not eject automatically: ${e.message || e}\n\n` +
+        'Please eject the device from your file manager.',
+        { title: 'Eject Failed', kind: 'warning' }
+      );
+    }
+  }
+
   function handleEditorChange(newValue: string) {
     editorContent = newValue;
     $hasUnsavedChanges = newValue !== $currentConfigRaw;
@@ -343,6 +381,13 @@
         disabled={!$selectedDevice || $isLoading}
       >
         Restart Device
+      </button>
+      <button
+        class="secondary"
+        onclick={doEjectDevice}
+        disabled={!$selectedDevice || $isLoading}
+      >
+        Eject
       </button>
     </div>
   </footer>
