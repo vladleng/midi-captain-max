@@ -318,13 +318,17 @@ pub fn validate_config(json: String) -> Result<(), ConfigError> {
 const ADAFRUIT_VID: u16 = 0x239A;
 
 /// Find a CircuitPython serial port by looking for Adafruit VID.
+///
+/// On macOS each USB serial device appears as both `/dev/cu.*` and `/dev/tty.*`.
+/// We deduplicate by USB serial number and prefer `cu.*` (doesn't block on open).
 fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
     let ports = serialport::available_ports().map_err(|e| ConfigError {
         message: format!("Failed to enumerate serial ports: {}", e),
         details: None,
     })?;
 
-    let adafruit_ports: Vec<_> = ports
+    // Filter to Adafruit VID ports, preferring cu.* over tty.* on macOS
+    let mut adafruit_ports: Vec<_> = ports
         .iter()
         .filter(|p| {
             matches!(
@@ -334,6 +338,15 @@ fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
         })
         .collect();
 
+    // On macOS, cu.* and tty.* are the same physical device — deduplicate.
+    // Keep cu.* (call-up port, doesn't block waiting for carrier detect).
+    if adafruit_ports.len() > 1 {
+        let has_cu = adafruit_ports.iter().any(|p| p.port_name.contains("/cu."));
+        if has_cu {
+            adafruit_ports.retain(|p| p.port_name.contains("/cu."));
+        }
+    }
+
     match adafruit_ports.len() {
         0 => Err(ConfigError {
             message: "No CircuitPython serial port found. Is the device connected?".to_string(),
@@ -341,7 +354,7 @@ fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
         }),
         1 => Ok(adafruit_ports[0].port_name.clone()),
         _ => {
-            // Multiple Adafruit devices — can't determine which one to restart.
+            // Multiple distinct Adafruit devices.
             // Future: correlate by USB serial number.
             Err(ConfigError {
                 message: format!(
