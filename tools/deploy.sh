@@ -210,6 +210,14 @@ fi
 
 echo -e "${GREEN}✓ Device found at $MOUNT_POINT${NC}"
 
+# Show current firmware version on device
+if [ -f "$MOUNT_POINT/VERSION" ]; then
+    CURRENT_VERSION=$(cat "$MOUNT_POINT/VERSION")
+    echo "  Current firmware: $CURRENT_VERSION"
+else
+    echo "  Current firmware: (none)"
+fi
+
 # Install libraries if requested (--install or --device)
 if [ "$DO_INSTALL" = true ]; then
     echo ""
@@ -354,13 +362,18 @@ sync_dir() {
     [ "${4:-}" = "--delete" ] && delete_flag="--delete"
     echo -e "${BLUE}${label}:${NC}"
     local output
+    # rsync --itemize-changes format: "XYZtpog... filename"
+    # Extract just the filename (field after the status flags)
     output=$(rsync -a --checksum --inplace --itemize-changes $delete_flag \
         --exclude='.DS_Store' --exclude='*.pyc' --exclude='__pycache__' \
-        "$src" "$dst" 2>&1)
+        "$src" "$dst" 2>&1 \
+        | sed 's/^[^ ]* //')
     if [ -z "$output" ]; then
         echo "  (no changes)"
     else
-        echo "$output" | while IFS= read -r line; do echo "  > $line"; done
+        echo "$output" | while IFS= read -r line; do
+            [ -n "$line" ] && echo "  > $line"
+        done
     fi
 }
 
@@ -437,8 +450,7 @@ sync_file "code.py" "$DEV_DIR/code.py" "$MOUNT_POINT/"
 # Use it directly rather than falling back to "dev" via git describe.
 if [ "$CONTEXT" = "dist" ] && [ -f "$DEV_DIR/VERSION" ]; then
     VERSION=$(cat "$DEV_DIR/VERSION")
-    rsync -av --checksum --inplace --itemize-changes \
-        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION"
+    sync_file "VERSION" "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION"
 else
     VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
     echo "$VERSION" > "$MOUNT_POINT/VERSION"
