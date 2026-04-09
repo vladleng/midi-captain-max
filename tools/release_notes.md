@@ -67,6 +67,14 @@ Run the included `deploy.ps1` script from the extracted zip folder in PowerShell
 .\deploy.ps1 -MountPoint E:\
 ```
 
+### Custom Drive Names
+
+If you've renamed your device's USB drive (via the `usb_drive_name` setting in `config.json`), the deploy scripts will auto-detect it. If auto-detection fails, specify the mount point manually:
+
+- **macOS**: `./deploy.sh /Volumes/<your-drive-name>`
+- **Linux**: `./deploy.sh /media/$USER/<your-drive-name>`
+- **Windows**: `.\deploy.ps1 -MountPoint E:\`
+
 ### Manual install (any platform)
 
 1. Open the extracted zip folder.
