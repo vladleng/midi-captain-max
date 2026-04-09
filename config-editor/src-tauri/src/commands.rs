@@ -2,7 +2,7 @@
 
 use crate::config::MidiCaptainConfig;
 use std::fs::{self, OpenOptions};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::command;
@@ -389,47 +389,28 @@ pub fn restart_device(path: String) -> Result<(), ConfigError> {
             details: None,
         })?;
 
-    // Send Ctrl-C to interrupt the running program and drop to REPL,
-    // then Ctrl-D to trigger a soft reload. Two Ctrl-C's for reliability.
-    // Sent as separate writes with a delay so the REPL has time to
-    // initialize before receiving Ctrl-D.
-    for &byte in &[0x03, 0x03] {
-        port.write_all(&[byte]).map_err(|e| ConfigError {
-            message: format!("Failed to write to serial port: {}", e),
-            details: None,
-        })?;
-    }
+    // Ctrl-C: interrupt running program, drop to REPL
+    port.write_all(&[0x03]).map_err(|e| ConfigError {
+        message: format!("Failed to send interrupt: {}", e),
+        details: None,
+    })?;
+
+    // Wait for CircuitPython to stop the program and initialize the REPL
+    std::thread::sleep(Duration::from_millis(500));
+
+    // Ctrl-D: soft reload — restarts code.py with new config
+    port.write_all(&[0x04]).map_err(|e| ConfigError {
+        message: format!("Failed to send reload: {}", e),
+        details: None,
+    })?;
+
     port.flush().map_err(|e| ConfigError {
         message: format!("Failed to flush serial port: {}", e),
         details: None,
     })?;
 
-    std::thread::sleep(Duration::from_secs(1));
-
-    // Drain any pending REPL output (traceback, prompt) before sending Ctrl-D
-    let mut buf = [0u8; 1024];
-    loop {
-        match port.read(&mut buf) {
-            Ok(0) => break,
-            Ok(_) => continue,
-            Err(_) => break,
-        }
-    }
-
-    // Send Ctrl-D twice for reliability
-    for &byte in &[0x04, 0x04] {
-        port.write_all(&[byte]).map_err(|e| ConfigError {
-            message: format!("Failed to write to serial port: {}", e),
-            details: None,
-        })?;
-    }
-    port.flush().map_err(|e| ConfigError {
-        message: format!("Failed to flush serial port: {}", e),
-        details: None,
-    })?;
-
-    // Pause before closing so bytes are fully transmitted
-    std::thread::sleep(Duration::from_secs(1));
+    // Brief pause before closing so the byte is fully transmitted
+    std::thread::sleep(Duration::from_millis(100));
 
     Ok(())
 }
