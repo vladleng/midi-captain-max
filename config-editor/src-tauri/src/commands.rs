@@ -395,8 +395,9 @@ pub fn restart_device(path: String) -> Result<(), ConfigError> {
         details: None,
     })?;
 
-    // Wait for CircuitPython to stop the program and initialize the REPL
-    std::thread::sleep(Duration::from_millis(500));
+    // Wait for CircuitPython to stop the program and initialize the REPL.
+    // 1000ms accommodates Windows, whose USB serial stack is slower than macOS.
+    std::thread::sleep(Duration::from_millis(1000));
 
     // Ctrl-D: soft reload — restarts code.py with new config
     port.write_all(&[0x04]).map_err(|e| ConfigError {
