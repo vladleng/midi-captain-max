@@ -2,7 +2,7 @@
 
 use crate::config::MidiCaptainConfig;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::command;
@@ -394,16 +394,28 @@ pub fn restart_device(path: String) -> Result<(), ConfigError> {
         message: format!("Failed to send interrupt: {}", e),
         details: None,
     })?;
+    port.flush().map_err(|e| ConfigError {
+        message: format!("Failed to flush serial port: {}", e),
+        details: None,
+    })?;
 
-    // Wait for CircuitPython to stop the program and initialize the REPL
+    // Wait for REPL to initialize, then drain any response (traceback, prompt)
+    // so the serial buffer is clear before sending Ctrl-D
     std::thread::sleep(Duration::from_secs(1));
+    let mut buf = [0u8; 1024];
+    loop {
+        match port.read(&mut buf) {
+            Ok(0) => break,
+            Ok(_) => continue,  // keep draining
+            Err(_) => break,    // timeout = buffer empty
+        }
+    }
 
     // Ctrl-D: soft reload — restarts code.py with new config
     port.write_all(&[0x04]).map_err(|e| ConfigError {
         message: format!("Failed to send reload: {}", e),
         details: None,
     })?;
-
     port.flush().map_err(|e| ConfigError {
         message: format!("Failed to flush serial port: {}", e),
         details: None,
