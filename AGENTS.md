@@ -610,8 +610,24 @@ Save button → saveToDevice()
 `restart_device` sends Ctrl-C (`0x03`) + Ctrl-D (`0x04`) over serial to trigger a CircuitPython soft reload. The USB drive stays mounted — no eject or power cycle needed.
 
 - **Port discovery**: Filters `serialport::available_ports()` by Adafruit VID (`0x239A`). Currently requires exactly one Adafruit device connected; multi-device support (correlate by USB serial number) is planned.
-- **Thread blocking**: `restart_device` uses `thread::sleep(100ms)` between Ctrl-C and Ctrl-D. This is fine because Tauri commands run on a thread pool. If this ever moves to `async`, the sleep must become `tokio::time::sleep`.
-- **Fallback**: If serial port is unavailable (port busy, Windows permissions, multiple devices), the frontend shows manual restart instructions.
+- **macOS cu.*/tty.* deduplication**: Each USB serial device appears as both `/dev/cu.*` and `/dev/tty.*`. The code deduplicates by preferring `cu.*` (doesn't block waiting for carrier detect). Without this, the VID filter finds 2 ports for 1 device and hits the multi-device error.
+- **Timing**: 500ms delay between Ctrl-C and Ctrl-D for REPL initialization. Verified working on macOS. Not yet tested on native Windows (VM USB passthrough introduces unreliable latency).
+- **Thread blocking**: `restart_device` uses `thread::sleep`. This is fine because Tauri commands run on a thread pool. If this ever moves to `async`, the sleep must become `tokio::time::sleep`.
+- **Serial port busy**: If another program (e.g., `tio`, `screen`, Arduino Serial Monitor) has the port open, the open will fail with "Device or resource busy". The frontend shows manual restart instructions as fallback.
+- **Fallback**: If serial port is unavailable (port busy, multiple devices, etc.), the frontend shows manual restart instructions.
+
+### Eject Device
+
+`eject_device` safely unmounts the device volume. Cross-platform:
+- **macOS**: `diskutil eject`
+- **Linux**: `gio mount -u` with `umount` fallback (not `udisksctl` — it expects block devices, not mount points)
+- **Windows**: PowerShell `Shell.Application` COM object `.InvokeVerb("Eject")` — same mechanism as Explorer's "Eject" context menu
+
+### Tauri Windows Installer
+
+`tauri.conf.json` `bundle.windows.nsis.installMode` controls install location:
+- `"perUser"` (default): installs to `AppData` — deep, hard to find
+- `"both"`: prompts user to choose per-machine (Program Files) or per-user, defaulting to Program Files
 
 ### Critical: Rust ↔ TypeScript Type Sync
 
@@ -852,6 +868,47 @@ if enable_usb_drive:
 | `config-editor/src-tauri/src/config.rs` | Rust config structs + validation + round-trip tests |
 | `config-editor/src-tauri/src/commands.rs` | Tauri IPC commands: read/write/validate, path security |
 | `config-editor/src-tauri/src/device.rs` | USB device detection and hot-plug watcher |
+
+---
+
+## CI/Release Process
+
+### Release Workflow
+
+Releases use **draft releases** for pre-publish testing:
+
+1. Push tag `v1.x.0` (CI must trigger on tags so `git describe` returns clean version for Tauri binary)
+2. CI builds artifacts with clean version baked in
+3. Release workflow waits for CI via `gh run watch --exit-status`, then creates a **draft** release
+4. Download and test draft artifacts
+5. Publish via GitHub UI when satisfied; delete draft + tag if not
+
+**Tauri binary versions are baked at build time** (in `tauri.conf.json` via jq patch before `cargo tauri build`). They cannot be patched post-build due to code signing. This is why CI must run on the tag — the version string comes from `git describe`.
+
+### Merging Release Branches
+
+**Always use fast-forward merge** to keep the tag on main's history:
+```bash
+git checkout main
+git merge --ff-only <branch>
+git push
+```
+GitHub's "Rebase and merge" UI option **rewrites commit SHAs** even when a fast-forward is possible, causing the tag to point to a commit that's no longer on main. This is a GitHub UI limitation — it always replays commits, never fast-forwards.
+
+### CI Architecture
+
+- **CI triggers**: branch pushes + tag pushes (`v*`). Tags needed for clean version injection.
+- **Release triggers**: tag pushes only (`v*`). Creates draft releases.
+- **Artifact flow**: CI uploads (`actions/upload-artifact@v7`), release downloads (`actions/download-artifact@v7`). These are different actions — don't confuse them (easy mistake).
+- **Firmware VERSION patching**: Release workflow patches `/VERSION` inside the firmware zip with the clean tag, since the CI-built VERSION contains a `git describe` string.
+- **Linux CI deps**: `libudev-dev` required by the `serialport` crate. Cached via `awalsh128/cache-apt-pkgs-action`.
+
+### Deploy Scripts
+
+`tools/deploy.sh` and `tools/deploy.ps1` share the same deploy order and progress style:
+- Per-file/directory labels with `(no changes)` when nothing was updated
+- Shows current firmware version on device and incoming version at start
+- `sync_dir` / `sync_file` helpers (bash) wrap rsync and strip itemize-changes prefixes
 
 ---
 
