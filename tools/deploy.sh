@@ -210,13 +210,19 @@ fi
 
 echo -e "${GREEN}✓ Device found at $MOUNT_POINT${NC}"
 
-# Show current firmware version on device
+# Show current and incoming firmware versions
 if [ -f "$MOUNT_POINT/VERSION" ]; then
     CURRENT_VERSION=$(cat "$MOUNT_POINT/VERSION")
     echo "  Current firmware: $CURRENT_VERSION"
 else
     echo "  Current firmware: (none)"
 fi
+if [ "$CONTEXT" = "dist" ] && [ -f "$DEV_DIR/VERSION" ]; then
+    NEW_VERSION=$(cat "$DEV_DIR/VERSION")
+else
+    NEW_VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
+fi
+echo "  Upgrading to:     $NEW_VERSION"
 
 # Install libraries if requested (--install or --device)
 if [ "$DO_INSTALL" = true ]; then
