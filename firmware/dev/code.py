@@ -19,6 +19,12 @@ Hardware Variants:
 Author: Max Cascone (based on work by Helmut Keller)
 Date: 2026-01-27
 """
+"""
+vladleng added:
+1. one_shot for CC
+2. one_ahot for note
+2026-04-10
+"""
 
 print("\n=== MIDI CAPTAIN MAX ===\n")
 
@@ -725,18 +731,6 @@ def update_pc_flash_timers():
             pc_flash_timers[i] = 0.0
             set_button_state(i + 1, False)
 
-def update_pc_select_group(active_program, channel=0):
-    """Select mode (radio group) only for PC buttons.
-    Lights up only one button corresponding to program.
-    All other buttons with mode="select" are turned off.
-    """
-    try:
-        for i, btn_config in enumerate(buttons):
-            if btn_config.get("mode") == "select" and btn_config.get("channel", 0) == channel:
-                is_active = (btn_config.get("program", -1) == active_program)
-                set_button_state(i + 1, is_active)
-    except Exception as e:
-        print(f"[Select Error] {e}")
 
 # =============================================================================
 # Polling Functions
@@ -814,12 +808,15 @@ def handle_midi():
 
 def handle_switches():
     """Handle footswitch presses with keytimes support."""
+    # STD10: index 0 is encoder push, 1-10 are footswitches
+    # Mini6: indices 0-5 are footswitches (no encoder)
     start_idx = 1 if HAS_ENCODER else 0
     for i in range(start_idx, len(switches)):
         sw = switches[i]
         changed, pressed = sw.changed()
 
         if changed:
+            # Convert to 1-indexed button number
             btn_num = i if HAS_ENCODER else i + 1
             idx = btn_num - 1
             btn_state = button_states[idx]
@@ -829,26 +826,20 @@ def handle_switches():
             mode = btn_config.get("mode", "toggle")
             channel = btn_config.get("channel", 0)
 
-            # ====================== CC BUTTONS ======================
             if message_type == "cc":
                 if pressed:
                     btn_state.advance_keytime()
-
                 state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
                 cc = state_cfg.get("cc", 20 + idx)
                 cc_on = state_cfg.get("cc_on", 127)
                 cc_off = state_cfg.get("cc_off", 0)
-
-                # ====================== ONE_SHOT MODE ======================
                 if mode == "one_shot":
                     if pressed:
                         val = cc_on
-                        midi_send(ControlChange(cc, val), channel=channel)
+                        midi_send(ControlChange(cc, val, channel=channel))
                         print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (one_shot, switch {btn_num})")
-                        update_status(f"TX CC{cc}={val} (one_shot)")
-                    continue   # ничего не делаем при отпускании
-
-                # Обычные режимы
+                        status_label.text = f"TX CC{cc}={val} (one_shot)"
+                    continue
                 if mode == "momentary":
                     val = cc_on if pressed else cc_off
                     set_button_state(btn_num, pressed)
@@ -856,6 +847,7 @@ def handle_switches():
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, momentary)")
                     update_status(f"TX CC{cc}={val}")
                 elif pressed:
+                    # Keytimes cycling always stays on; standard toggle flips on/off
                     new_state = True if btn_state.keytimes > 1 else not btn_state.state
                     btn_state.state = new_state
                     set_button_state(btn_num, new_state)
@@ -864,7 +856,6 @@ def handle_switches():
                     print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num}, toggle)")
                     update_status(f"TX CC{cc}={val}")
 
-            # ====================== NOTE BUTTONS ======================
             elif message_type == "note":
                 if pressed:
                     btn_state.advance_keytime()
@@ -872,6 +863,13 @@ def handle_switches():
                 note = state_cfg.get("note", 60)
                 vel_on = state_cfg.get("velocity_on", 127)
                 vel_off = state_cfg.get("velocity_off", 0)
+                if mode == "one_shot":
+                    if pressed:
+                        midi_send(NoteOn(note, vel_on), channel=channel)
+                        print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel_on} (one_shot, switch {btn_num})")
+                        update_status(f"TX Note{note} (one_shot)")
+                        set_button_state(btn_num, False)
+                    continue
                 if mode == "momentary":
                     if pressed:
                         midi_send(NoteOn(note, vel_on), channel=channel)
@@ -883,6 +881,7 @@ def handle_switches():
                         set_button_state(btn_num, False)
                         print(f"[MIDI TX] Ch{channel+1} NoteOff{note} (switch {btn_num})")
                 elif pressed:
+                    # Keytimes cycling always stays on; standard toggle flips on/off
                     new_state = True if btn_state.keytimes > 1 else not btn_state.state
                     btn_state.state = new_state
                     set_button_state(btn_num, new_state)
@@ -895,7 +894,6 @@ def handle_switches():
                         print(f"[MIDI TX] Ch{channel+1} NoteOff{note} (switch {btn_num}, toggle off)")
                         update_status(f"TX Note{note} OFF")
 
-            # ====================== PC + SELECT MODE ======================
             elif message_type == "pc" and pressed:
                 btn_state.advance_keytime()
                 state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
@@ -903,14 +901,8 @@ def handle_switches():
                 midi_send(ProgramChange(program), channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
                 update_status(f"TX PC{program}")
+                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
-                # Select-режим (радиогруппа)
-                if mode == "select":
-                    update_pc_select_group(program, channel)
-                else:
-                    flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
-
-            # ====================== PC INC / DEC ======================
             elif message_type == "pc_inc" and pressed:
                 btn_state.advance_keytime()
                 state_cfg = get_button_state_config(btn_config, btn_state.get_keytime())
@@ -929,7 +921,7 @@ def handle_switches():
                 midi_send(ProgramChange(pc_values[channel]), channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} (switch {btn_num}, dec)")
                 update_status(f"TX PC{pc_values[channel]}")
-                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS"))
+                flash_pc_button(btn_num, btn_config.get("flash_ms", PC_FLASH_DURATION_MS))
 
 
 def handle_encoder_button():
