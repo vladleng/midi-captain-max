@@ -4,6 +4,7 @@ use crate::config::MidiCaptainConfig;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tauri::command;
 
 #[cfg(unix)]
@@ -307,6 +308,212 @@ pub fn validate_config(json: String) -> Result<(), ConfigError> {
         return Err(ConfigError {
             message: "Validation failed".to_string(),
             details: Some(errors),
+        });
+    }
+
+    Ok(())
+}
+
+/// Adafruit USB Vendor ID — all MIDI Captain devices use Adafruit CircuitPython boards
+const ADAFRUIT_VID: u16 = 0x239A;
+
+/// Find a CircuitPython serial port by looking for Adafruit VID.
+///
+/// On macOS each USB serial device appears as both `/dev/cu.*` and `/dev/tty.*`.
+/// We deduplicate by USB serial number and prefer `cu.*` (doesn't block on open).
+fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
+    let ports = serialport::available_ports().map_err(|e| ConfigError {
+        message: format!("Failed to enumerate serial ports: {}", e),
+        details: None,
+    })?;
+
+    // Filter to Adafruit VID ports, preferring cu.* over tty.* on macOS
+    let mut adafruit_ports: Vec<_> = ports
+        .iter()
+        .filter(|p| {
+            matches!(
+                &p.port_type,
+                serialport::SerialPortType::UsbPort(info) if info.vid == ADAFRUIT_VID
+            )
+        })
+        .collect();
+
+    // On macOS, cu.* and tty.* are the same physical device — deduplicate.
+    // Keep cu.* (call-up port, doesn't block waiting for carrier detect).
+    if adafruit_ports.len() > 1 {
+        let has_cu = adafruit_ports.iter().any(|p| p.port_name.contains("/cu."));
+        if has_cu {
+            adafruit_ports.retain(|p| p.port_name.contains("/cu."));
+        }
+    }
+
+    match adafruit_ports.len() {
+        0 => Err(ConfigError {
+            message: "No CircuitPython serial port found. Is the device connected?".to_string(),
+            details: None,
+        }),
+        1 => Ok(adafruit_ports[0].port_name.clone()),
+        _ => {
+            // Multiple distinct Adafruit devices.
+            // Future: correlate by USB serial number.
+            Err(ConfigError {
+                message: format!(
+                    "Found {} CircuitPython devices. Disconnect other devices and try again.",
+                    adafruit_ports.len()
+                ),
+                details: None,
+            })
+        }
+    }
+}
+
+/// Soft-reboot a CircuitPython device by sending Ctrl-C + Ctrl-D over serial.
+///
+/// Ctrl-C interrupts the running program, Ctrl-D triggers a soft reload
+/// that re-reads config.json and restarts code.py. The USB drive stays
+/// mounted throughout — no eject or power cycle needed.
+#[command]
+pub fn restart_device(path: String) -> Result<(), ConfigError> {
+    validate_device_path(&path)?;
+
+    let path_obj = Path::new(&path);
+    verify_device_connected(path_obj)?;
+
+    let serial_port = find_device_serial_port(path_obj)?;
+
+    let mut port = serialport::new(&serial_port, 115200)
+        .timeout(Duration::from_secs(2))
+        .open()
+        .map_err(|e| ConfigError {
+            message: format!("Failed to open serial port {}: {}", serial_port, e),
+            details: None,
+        })?;
+
+    // Ctrl-C: interrupt running program, drop to REPL
+    port.write_all(&[0x03]).map_err(|e| ConfigError {
+        message: format!("Failed to send interrupt: {}", e),
+        details: None,
+    })?;
+
+    // Wait for CircuitPython to stop the program and initialize the REPL
+    std::thread::sleep(Duration::from_millis(500));
+
+    // Ctrl-D: soft reload — restarts code.py with new config
+    port.write_all(&[0x04]).map_err(|e| ConfigError {
+        message: format!("Failed to send reload: {}", e),
+        details: None,
+    })?;
+
+    port.flush().map_err(|e| ConfigError {
+        message: format!("Failed to flush serial port: {}", e),
+        details: None,
+    })?;
+
+    // Brief pause before closing so the byte is fully transmitted
+    std::thread::sleep(Duration::from_millis(100));
+
+    Ok(())
+}
+
+/// Safely eject/unmount the device volume.
+#[command]
+pub fn eject_device(path: String) -> Result<(), ConfigError> {
+    validate_device_path(&path)?;
+
+    let path_obj = Path::new(&path);
+    verify_device_connected(path_obj)?;
+
+    let volume_path = get_volume_path(path_obj).ok_or_else(|| ConfigError {
+        message: "Could not determine volume path for device".to_string(),
+        details: None,
+    })?;
+
+    eject_volume(&volume_path)
+}
+
+#[cfg(target_os = "macos")]
+fn eject_volume(volume_path: &Path) -> Result<(), ConfigError> {
+    use std::process::Command;
+    let output = Command::new("diskutil")
+        .arg("eject")
+        .arg(volume_path)
+        .output()
+        .map_err(|e| ConfigError {
+            message: format!("Failed to run diskutil eject: {}", e),
+            details: None,
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ConfigError {
+            message: format!("Eject failed: {}", stderr.trim()),
+            details: None,
+        });
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn eject_volume(volume_path: &Path) -> Result<(), ConfigError> {
+    use std::process::Command;
+
+    // Try gio mount first (GNOME/freedesktop, works in user space)
+    if let Ok(output) = Command::new("gio").arg("mount").arg("-u").arg(volume_path).output() {
+        if output.status.success() {
+            return Ok(());
+        }
+    }
+
+    // Fall back to umount (requires permission but works on any Linux)
+    if let Ok(output) = Command::new("umount").arg(volume_path).output() {
+        if output.status.success() {
+            return Ok(());
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ConfigError {
+            message: format!("Could not unmount device: {}", stderr.trim()),
+            details: None,
+        });
+    }
+
+    Err(ConfigError {
+        message: "Could not unmount device: neither gio nor umount is available. Please eject manually.".to_string(),
+        details: None,
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn eject_volume(volume_path: &Path) -> Result<(), ConfigError> {
+    use std::process::Command;
+
+    // Get drive letter (e.g., "E:" from "E:\")
+    let drive = volume_path
+        .to_str()
+        .and_then(|s| s.get(..2))
+        .ok_or_else(|| ConfigError {
+            message: "Could not determine drive letter".to_string(),
+            details: None,
+        })?;
+
+    // Use PowerShell Shell.Application COM object for safe USB eject
+    let script = format!(
+        "(New-Object -ComObject Shell.Application).Namespace(17).ParseName('{}').InvokeVerb('Eject')",
+        drive
+    );
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &script])
+        .output()
+        .map_err(|e| ConfigError {
+            message: format!("Failed to run PowerShell eject: {}", e),
+            details: None,
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ConfigError {
+            message: format!("Eject failed: {}", stderr.trim()),
+            details: None,
         });
     }
 

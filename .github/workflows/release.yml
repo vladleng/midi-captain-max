@@ -53,46 +53,33 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           echo "VERSION=$TAG" >> $GITHUB_ENV
 
-      - name: Wait for CI and get run ID
+      - name: Wait for CI to complete
         id: get-run
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Wait up to 30 minutes for CI to complete on this commit.
-          # The tag push triggers CI, but it may still be running.
+          # Find the CI run triggered by this tag push and wait for it.
           SHA="${{ github.sha }}"
-          API_BASE="/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${SHA}&per_page=1"
 
-          for i in $(seq 1 60); do
-            # Check for success
-            RUN_ID=$(gh api "${API_BASE}&status=success" --jq '.workflow_runs[0].id')
-            if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
-              echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
-              echo "Found CI run: $RUN_ID" >> $GITHUB_STEP_SUMMARY
-              exit 0
-            fi
+          # Give CI a moment to start
+          sleep 10
 
-            # Check for failure/cancellation — fail fast instead of waiting
-            FAILED_ID=$(gh api "${API_BASE}&status=failure" --jq '.workflow_runs[0].id')
-            CANCELLED_ID=$(gh api "${API_BASE}&status=cancelled" --jq '.workflow_runs[0].id')
-            if [ -n "$FAILED_ID" ] && [ "$FAILED_ID" != "null" ]; then
-              echo "::error::CI run $FAILED_ID failed for commit ${SHA}."
-              exit 1
-            fi
-            if [ -n "$CANCELLED_ID" ] && [ "$CANCELLED_ID" != "null" ]; then
-              echo "::error::CI run $CANCELLED_ID was cancelled for commit ${SHA}."
-              exit 1
-            fi
+          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${SHA}&per_page=1" \
+            --jq '.workflow_runs[0].id')
 
-            echo "Waiting for CI to complete... (attempt $i/60)"
-            sleep 30
-          done
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "::error::No CI run found for commit ${SHA}."
+            exit 1
+          fi
 
-          echo "::error::No successful CI run found for commit ${SHA} after 30 minutes."
-          exit 1
+          # Block until the run completes; exits non-zero if it fails
+          gh run watch "$RUN_ID" --exit-status
+
+          echo "RUN_ID=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "CI run $RUN_ID completed successfully" >> $GITHUB_STEP_SUMMARY
 
       - name: Download all artifacts from CI
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           github-token: ${{ github.token }}
           run-id: ${{ steps.get-run.outputs.RUN_ID }}
@@ -229,6 +216,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
           prerelease:  ${{ steps.header.outputs.PRERELEASE }}
           make_latest: ${{ steps.header.outputs.PRERELEASE != 'true' }}
           files: dist/*
@@ -238,9 +226,11 @@ jobs:
 
       - name: Print Release
         run: |
-          { 
-            echo "Release \`$VERSION\` created successfully!"
+          {
+            echo "## Draft release \`$VERSION\` created"
             echo ""
             echo "Release URL: ${{ steps.create_release.outputs.url }}"
+            echo ""
+            echo "**Next steps:** Download and test the artifacts, then publish the release."
           } >> $GITHUB_STEP_SUMMARY
 

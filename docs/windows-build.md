@@ -65,13 +65,13 @@ build-config-editor-windows:
         npm run tauri build
         Get-ChildItem -Path src-tauri\target\release\bundle\ -Recurse
     - name: Upload MSI artifact
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: config-editor-msi
         path: config-editor/src-tauri/target/release/bundle/msi/*.msi
         retention-days: 90
     - name: Upload NSIS artifact
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: config-editor-nsis
         path: config-editor/src-tauri/target/release/bundle/nsis/*.exe

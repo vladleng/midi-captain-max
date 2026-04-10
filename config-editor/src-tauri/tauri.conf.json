@@ -45,7 +45,10 @@
     },
     "windows": {
       "certificateThumbprint": null,
-      "digestAlgorithm": "sha256"
+      "digestAlgorithm": "sha256",
+      "nsis": {
+        "installMode": "both"
+      }
     },
     "category": "Music",
     "shortDescription": "Configure MIDI Captain foot controllers",
